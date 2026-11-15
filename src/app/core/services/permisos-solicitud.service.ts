@@ -9,6 +9,7 @@ import {
   ACCIONES_OFERENTE,
   ACCIONES_SOLICITUD,
   ACCIONES_SUBSANACION,
+  ACCIONES_VALIDACION,
   AccionComparador,
   AccionComparadorMeta,
   AccionDecision,
@@ -23,6 +24,8 @@ import {
   AccionSolicitudMeta,
   AccionSubsanacion,
   AccionSubsanacionMeta,
+  AccionValidacion,
+  AccionValidacionMeta,
   ESTADOS_ACTUALIZACION_RESPUESTA,
   ESTADOS_SOLICITUD,
   EstadoActualizacionRespuesta,
@@ -40,6 +43,7 @@ import {
   accionesOferentePorRoles,
   accionesSolicitudPorRoles,
   accionesSubsanacionPorRoles,
+  accionesValidacionPorRoles,
 } from "../constants/acciones-por-rol-y-estado.const";
 import type {
   DecisionSolicitud,
@@ -58,7 +62,14 @@ import {
 } from "src/app/modules/cotizaciones/models/solicitud.model";
 import type { Solicitud } from "src/app/modules/cotizaciones/models/solicitud.model";
 import {
+  estadoValidacion,
+} from "src/app/modules/cotizaciones/models/validacion-ordenador.model";
+import type {
+  SolicitudValidacionOrdenador,
+} from "src/app/modules/cotizaciones/models/validacion-ordenador.model";
+import {
   ROLES_SOLICITANTE,
+  ROL_ORDENADOR_DEL_GASTO,
   ROL_PROVEEDOR,
 } from "../constants/roles.const";
 
@@ -382,6 +393,60 @@ export class PermisosSolicitudService {
   etiquetaAccionDecision(accion: AccionDecision): string {
     const meta: AccionDecisionMeta = ACCIONES_DECISION[accion];
     return meta.etiqueta;
+  }
+
+  /* ───────────── Validación del Ordenador del Gasto (O-01) ───────────── */
+
+  /**
+   * Acciones que ofrece una fila de la bandeja de validación.
+   *
+   * RN-32: solo el Ordenador del Gasto las ve. El estado y las acciones salen
+   * de la matriz de validación; la plantilla no decide por rol ni por estado.
+   */
+  accionesValidacionPermitidas(
+    fila: SolicitudValidacionOrdenador,
+  ): readonly AccionValidacion[] {
+    if (
+      !this.rol.estaCargado() ||
+      !this.rol.tieneRol(ROL_ORDENADOR_DEL_GASTO)
+    ) {
+      return [];
+    }
+    return accionesValidacionPorRoles(this.rol.roles(), estadoValidacion(fila));
+  }
+
+  /**
+   * true si la fila puede validarse ahora.
+   *
+   * La matriz ya excluye los estados decididos (RN-35); aquí solo se añade la
+   * regla temporal de RN-29 para no habilitar el acto antes del cierre.
+   */
+  puedeValidarCotizacion(fila: SolicitudValidacionOrdenador): boolean {
+    return (
+      this.accionesValidacionPermitidas(fila).includes("validar") &&
+      this.puedeVerOfertas(fila.solicitud)
+    );
+  }
+
+  /** Texto visible de una acción de validación. */
+  etiquetaAccionValidacion(accion: AccionValidacion): string {
+    return ACCIONES_VALIDACION[accion].etiqueta;
+  }
+
+  /** Comandos de navegación de una acción de validación. */
+  rutaAccionValidacion(
+    accion: AccionValidacion,
+    fila: SolicitudValidacionOrdenador,
+  ): readonly string[] | null {
+    const meta: AccionValidacionMeta = ACCIONES_VALIDACION[accion];
+    if (!meta.ruta) {
+      return null;
+    }
+    return meta.ruta
+      .split("/")
+      .map((segmento) =>
+        segmento === ":id" ? fila.solicitud.id : segmento,
+      );
   }
 
   /* ───────────────── Comparador de cotizaciones (S-09) ───────────────── */

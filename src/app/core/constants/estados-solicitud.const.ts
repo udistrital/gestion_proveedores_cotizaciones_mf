@@ -168,11 +168,25 @@ export type EstadoDecision =
   | "aprobada"
   | "rechazada";
 
+/**
+ * Estado de la validación del Ordenador del Gasto (O-01).
+ *
+ * Es un eje propio: se deriva de `DecisionSolicitud.fase` y no del
+ * `EstadoSolicitud`. Una solicitud rechazada puede seguir `en-evaluacion` para
+ * un reenvío y su acto de validación sigue siendo «rechazada»; por eso la
+ * bandeja no lee el estado del expediente para decidir qué acciones ofrece.
+ */
+export type EstadoValidacionOrdenador =
+  | "por-validar"
+  | "validada-aprobada"
+  | "validada-rechazada";
+
 export type TonoChip =
   | "primario"
   | "exito"
   | "advertencia"
   | "info"
+  | "error"
   | "neutro";
 
 export interface EstadoSolicitudMeta {
@@ -432,6 +446,36 @@ export const ESTADOS_DECISION: Readonly<
   },
 };
 
+/**
+ * Metadatos visuales de la validación del Ordenador del Gasto (O-01).
+ *
+ * Se mantiene aparte de `ESTADOS_DECISION` para no reutilizar sus claves
+ * (`rechazada` ya existe en la postulación del proveedor) dentro de
+ * `ESTADOS_CHIP`; así P-01 conserva su chip y aquí se usa el tono `error`.
+ */
+export const ESTADOS_VALIDACION: Readonly<
+  Record<EstadoValidacionOrdenador, EstadoSolicitudMeta>
+> = {
+  "por-validar": {
+    etiqueta: "Pendiente de validación",
+    tono: "primario",
+    icono: "pending_actions",
+    pulso: false,
+  },
+  "validada-aprobada": {
+    etiqueta: "Aprobada",
+    tono: "exito",
+    icono: "verified",
+    pulso: false,
+  },
+  "validada-rechazada": {
+    etiqueta: "Rechazada",
+    tono: "error",
+    icono: "cancel",
+    pulso: false,
+  },
+};
+
 /** Metadatos visuales del periodo de subsanación (S-12). */
 export const ESTADOS_SUBSANACION: Readonly<
   Record<EstadoSubsanacion, EstadoSolicitudMeta>
@@ -617,7 +661,8 @@ export const ESTADOS_CHIP: Readonly<
     | EstadoDocumentoSubsanacionProveedor
     | EstadoEstudioMercado
     | EstadoInvitacionEstudio
-    | EstadoActualizacionRespuesta,
+    | EstadoActualizacionRespuesta
+    | EstadoValidacionOrdenador,
     EstadoSolicitudMeta
   >
 > = {
@@ -630,6 +675,7 @@ export const ESTADOS_CHIP: Readonly<
   ...ESTADOS_DOCUMENTO_SUBSANACION_PROVEEDOR,
   ...ESTADOS_ESTUDIO_MERCADO,
   ...ESTADOS_INVITACION_ESTUDIO,
+  ...ESTADOS_VALIDACION,
 };
 
 export const ACCIONES_SOLICITUD: Readonly<
@@ -827,6 +873,47 @@ export const ACCIONES_DECISION: Readonly<
     etiqueta: "Enviar a validación",
     icono: "send",
     ruta: null,
+  },
+};
+
+/**
+ * Acciones de una fila de la bandeja de validación (O-01).
+ *
+ * El orden del arreglo de la matriz define el orden de los botones: consulta
+ * del proceso, consulta del resultado y, al final, la acción principal.
+ */
+export type AccionValidacion =
+  | "ver-proceso"
+  | "ver-resultado"
+  | "validar";
+
+export interface AccionValidacionMeta {
+  readonly etiqueta: string;
+  readonly icono: string;
+  /** Ruta plantilla; `:id` es la solicitud. */
+  readonly ruta: string | null;
+  /** Acción principal del estado: se pinta con el botón lleno. */
+  readonly principal?: boolean;
+}
+
+export const ACCIONES_VALIDACION: Readonly<
+  Record<AccionValidacion, AccionValidacionMeta>
+> = {
+  "ver-proceso": {
+    etiqueta: "Ver detalle del proceso",
+    icono: "visibility",
+    ruta: "cotizaciones/solicitudes/:id",
+  },
+  "ver-resultado": {
+    etiqueta: "Resultado y cuadro comparativo",
+    icono: "fact_check",
+    ruta: "cotizaciones/validacion/:id/resultado",
+  },
+  validar: {
+    etiqueta: "Validar decisión",
+    icono: "verified",
+    ruta: "cotizaciones/validacion/:id/validar",
+    principal: true,
   },
 };
 

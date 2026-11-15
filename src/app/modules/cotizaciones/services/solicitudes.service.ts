@@ -38,6 +38,19 @@ import type {
   NotificacionDecision,
   RegistroEnvioDecision,
 } from "../models/decision.model";
+import {
+  conteosValidacionesVacios,
+  esMesActual,
+  estadoValidacion,
+  fechaProcesamientoIso,
+} from "../models/validacion-ordenador.model";
+import type {
+  ConteosValidaciones,
+  FiltroValidacionesOrdenador,
+  GrupoFiltroValidacion,
+  ResultadoListadoValidaciones,
+  SolicitudValidacionOrdenador,
+} from "../models/validacion-ordenador.model";
 import type { ResultadoProveedor } from "../models/resultado-proveedor.model";
 import { construirResultadoProveedor } from "../models/resultado-proveedor.model";
 import {
@@ -150,6 +163,23 @@ export abstract class SolicitudesService {
     pagina: number,
     porPagina: number,
   ): Observable<ResultadoListadoInvitaciones>;
+
+  /**
+   * Bandeja de validación del Ordenador del Gasto (O-01).
+   *
+   * Devuelve solo solicitudes que cumplen, en la capa de datos:
+   * - tienen una decisión registrada (proveedor seleccionado en S-11);
+   * - están asignadas al ordenador de la sesión (RN-02);
+   * - tienen el periodo de cotización cerrado (RN-29).
+   *
+   * El filtro por ordenador debe resolverlo el backend desde el token en la
+   * implementación HTTP; el componente nunca envía ni elige el ordenador.
+   */
+  abstract listarValidacionesOrdenador(
+    criterios: Partial<FiltroValidacionesOrdenador>,
+    pagina: number,
+    porPagina: number,
+  ): Observable<ResultadoListadoValidaciones>;
 
   /**
    * Detalle de una solicitud por su identificador.
@@ -341,6 +371,7 @@ function decisionSemilla(
   fase: "aprobada" | "rechazada",
   proveedorId: string,
   proveedorNombre: string,
+  valor: number,
   justificacionEnvio: string,
   justificacionValidacion: string,
   fechaEnvio: string,
@@ -354,7 +385,7 @@ function decisionSemilla(
     invitacionId: `INV-${solicitudId.slice(-4)}-${proveedorId.replace("prov-", "")}`,
     proveedorId,
     proveedorNombre,
-    valor: 0,
+    valor,
     envio: {
       justificacion: justificacionEnvio,
       justificacionHtml: `<p>${justificacionEnvio}</p>`,
@@ -399,6 +430,7 @@ function decisionEnValidacionSemilla(
   solicitudId: string,
   proveedorId: string,
   proveedorNombre: string,
+  valor: number,
   justificacion: string,
   fechaEnvio: string,
   codigo: string,
@@ -410,7 +442,7 @@ function decisionEnValidacionSemilla(
     invitacionId: `INV-${solicitudId.slice(-4)}`,
     proveedorId,
     proveedorNombre,
-    valor: 0,
+    valor,
     envio: {
       justificacion,
       justificacionHtml: `<p>${justificacion}</p>`,
@@ -446,6 +478,11 @@ function decisionEnValidacionSemilla(
  * - `0164`: decisión rechazada del proveedor del portal (P-07 rechazada).
  * - `0166`: solicitud cancelada, sin decisión (P-07 cancelada).
  * - `0167`: oferta enviada a validación (P-07 en validación).
+ *
+ * Los escenarios `0170`–`0178` alimentan la bandeja de validación (O-01):
+ * pendientes, aprobadas y rechazadas del ordenador ORD-0042, una con plazo
+ * vigente (excluida por RN-29) y dos asignadas a otros ordenadores (RN-02).
+ * Las fechas son relativas para que el indicador mensual no se congele.
  */
 const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
   {
@@ -463,6 +500,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 2,
     ultimaModificacion: "21/10/2026 09:15 COT",
     fechaLimiteObservaciones: "2026-10-15T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
   },
   {
     id: "SOL-2026-0161",
@@ -479,11 +517,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 3,
     ultimaModificacion: "24/10/2026 11:20 COT",
     fechaLimiteObservaciones: "2026-10-15T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0161",
       "aprobada",
       "prov-02",
       "Soluciones Tecnológicas Universitarias LTDA",
+      40_150_000,
       "Se selecciona la oferta por cumplir el 100% de las especificaciones técnicas y presentar la mejor relación costo-beneficio.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso.",
       "22/10/2026 14:32 COT",
@@ -506,11 +546,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "25/09/2026 16:40 COT",
     fechaLimiteObservaciones: "2026-09-15T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0162",
       "rechazada",
       "prov-01",
       "Redes y Servidores de Colombia S.A.S.",
+      36_980_000,
       "La oferta no acredita el cumplimiento integral de las especificaciones técnicas ni el plazo de disponibilidad exigido.",
       "Se rechaza la oferta y se declara desierta la convocatoria por incumplimiento de los requisitos habilitantes.",
       "22/09/2026 10:05 COT",
@@ -533,11 +575,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "07/11/2026 09:40 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0163",
       "aprobada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      98_450_000,
       "Se selecciona la oferta por cumplir el 100% de las especificaciones técnicas y presentar la mejor relación costo-beneficio.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso. Se solicita al proveedor alistar la documentación para la formalización.",
       "06/11/2026 10:15 COT",
@@ -560,11 +604,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "04/11/2026 15:05 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0164",
       "rechazada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      84_220_000,
       "La oferta cumple las especificaciones técnicas, pero la validación documental identificó inconsistencias en los soportes habilitantes.",
       "Se rechaza la cotización por inconsistencias documentales en los soportes habilitantes. La desestimación no genera inhabilidad para futuros procesos de selección.",
       "04/11/2026 10:20 COT",
@@ -587,6 +633,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "29/10/2026 08:30 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     cancelacion: {
       estadoAnterior: "en-evaluacion",
       justificacion:
@@ -613,13 +660,267 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "07/11/2026 11:20 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionEnValidacionSemilla(
       "SOL-2026-0167",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      45_900_000,
       "Se envía la oferta seleccionada a validación del Ordenador del Gasto por cumplir los requisitos técnicos y presupuestales.",
       "07/11/2026 11:20 COT",
       "SIGA-2026-DEC-99853",
+    ),
+  },
+  {
+    id: "SOL-2026-0170",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo:
+      "Adquisición de servidores blade de alta densidad y almacenamiento SAN para la Red de Investigaciones RITA",
+    apertura: fechaCortaRelativa(-12),
+    cierre: fechaCortaRelativa(-3),
+    dependencia: "Laboratorios de Telemática",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 14:30 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-6),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0170",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      284_000_000,
+      "Se revisaron tres cotizaciones dentro del plazo. La oferta cumple el 100% de las especificaciones de latencia y respaldo y presenta el menor costo.",
+      `${fechaCortaRelativa(-1)} 14:30 COT`,
+      "SIGA-2026-DEC-99860",
+    ),
+  },
+  {
+    id: "SOL-2026-0171",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo:
+      "Mantenimiento preventivo y correctivo especializado a Data Center Central",
+    apertura: fechaCortaRelativa(-11),
+    cierre: fechaCortaRelativa(-2),
+    dependencia: "Dirección de TI / Redes",
+    tipoCotizacion: "SERVICIO",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 10:15 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-6),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0171",
+      "prov-01",
+      "Redes y Servidores de Colombia S.A.S.",
+      58_700_000,
+      "La oferta cubre el alcance del mantenimiento y el plazo de respuesta exigido; se remite para la validación del ordenador.",
+      `${fechaCortaRelativa(-1)} 10:15 COT`,
+      "SIGA-2026-DEC-99861",
+    ),
+  },
+  {
+    id: "SOL-2026-0172",
+    vigencia: 2026,
+    unidadEjecutora: "4",
+    titulo:
+      "Suministro de reactivos químicos y material de vidrio para docencia e investigación",
+    apertura: fechaCortaRelativa(-16),
+    cierre: fechaCortaRelativa(-8),
+    dependencia: "Laboratorio de Química Sede Macarena",
+    tipoCotizacion: "BIEN",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-4)} 09:10 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-12),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0172",
+      "aprobada",
+      "prov-02",
+      "Soluciones Tecnológicas Universitarias LTDA",
+      75_820_000,
+      "La oferta cumple las fichas técnicas y presenta el menor valor entre las cotizaciones recibidas.",
+      "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-6)} 16:45 COT`,
+      `${fechaCortaRelativa(-4)} 09:10 COT`,
+      "SIGA-2026-DEC-99862",
+    ),
+  },
+  {
+    id: "SOL-2026-0173",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo:
+      "Adecuación acústica y sonorización Auditorio Mayor Sabio Caldas",
+    apertura: fechaCortaRelativa(-20),
+    cierre: fechaCortaRelativa(-10),
+    dependencia: "Decanatura Ingeniería",
+    tipoCotizacion: "BIEN_Y_SERVICIO",
+    estado: "desierta",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-6)} 11:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-14),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0173",
+      "rechazada",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      98_400_000,
+      "La oferta no acredita la experiencia específica en adecuación acústica exigida en los requisitos habilitantes.",
+      "Se rechaza la cotización y se devuelve al solicitante con observaciones técnicas.",
+      `${fechaCortaRelativa(-7)} 15:10 COT`,
+      `${fechaCortaRelativa(-6)} 11:00 COT`,
+      "SIGA-2026-DEC-99863",
+    ),
+  },
+  {
+    id: "SOL-2026-0174",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo:
+      "Póliza integral de seguros y respaldo patrimonial de bienes universitarios",
+    apertura: fechaCortaRelativa(-24),
+    cierre: fechaCortaRelativa(-12),
+    dependencia: "Oficina Asesora Jurídica",
+    tipoCotizacion: "SERVICIO",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-8)} 10:30 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-18),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0174",
+      "aprobada",
+      "prov-02",
+      "Soluciones Tecnológicas Universitarias LTDA",
+      112_000_000,
+      "La póliza cumple las coberturas mínimas y el respaldo patrimonial solicitado por la Oficina Asesora Jurídica.",
+      "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-9)} 12:00 COT`,
+      `${fechaCortaRelativa(-8)} 10:30 COT`,
+      "SIGA-2026-DEC-99864",
+    ),
+  },
+  {
+    id: "SOL-2026-0175",
+    vigencia: 2026,
+    unidadEjecutora: "4",
+    titulo:
+      "Equipamiento audiovisual para aulas inteligentes y talleres de creación",
+    apertura: fechaCortaRelativa(-28),
+    cierre: fechaCortaRelativa(-14),
+    dependencia: "Decanatura ASAB",
+    tipoCotizacion: "BIEN",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-10)} 09:45 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-20),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0175",
+      "aprobada",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      64_900_000,
+      "La oferta cumple las especificaciones técnicas y el plan de instalación en los talleres de creación.",
+      "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-11)} 17:20 COT`,
+      `${fechaCortaRelativa(-10)} 09:45 COT`,
+      "SIGA-2026-DEC-99865",
+    ),
+  },
+  /*
+   * RN-29: el periodo de cotización sigue vigente, así que la solicitud no
+   * aparece en la bandeja aunque tenga una decisión registrada. Es un
+   * escenario artificial para comprobar el filtro.
+   */
+  {
+    id: "SOL-2026-0176",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo: "Renovación de licencias de seguridad perimetral",
+    apertura: fechaCortaRelativa(-5),
+    cierre: fechaCortaRelativa(12),
+    dependencia: "División de TI",
+    tipoCotizacion: "SERVICIO",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 08:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(8),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0176",
+      "prov-01",
+      "Redes y Servidores de Colombia S.A.S.",
+      20_000_000,
+      "Escenario de prueba: el plazo sigue vigente y la validación no debe habilitarse antes del cierre.",
+      `${fechaCortaRelativa(-1)} 08:00 COT`,
+      "SIGA-2026-DEC-99866",
+    ),
+  },
+  /* RN-02: asignada a otro ordenador; no debe aparecer en la bandeja. */
+  {
+    id: "SOL-2026-0177",
+    vigencia: 2026,
+    unidadEjecutora: "2",
+    titulo: "Suministro de mobiliario para salas de estudio",
+    apertura: fechaCortaRelativa(-18),
+    cierre: fechaCortaRelativa(-6),
+    dependencia: "IDEXUD",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-5)} 15:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-12),
+    ordenadorGastoId: "ORD-0061",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0177",
+      "prov-02",
+      "Soluciones Tecnológicas Universitarias LTDA",
+      33_000_000,
+      "Escenario de prueba: la solicitud pertenece a otro ordenador del gasto.",
+      `${fechaCortaRelativa(-5)} 15:00 COT`,
+      "SIGA-2026-DEC-99867",
+    ),
+  },
+  {
+    id: "SOL-2026-0178",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo: "Mantenimiento de equipos de laboratorio de electrónica",
+    apertura: fechaCortaRelativa(-22),
+    cierre: fechaCortaRelativa(-9),
+    dependencia: "Facultad de Ingeniería",
+    tipoCotizacion: "BIEN",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-7)} 10:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-16),
+    ordenadorGastoId: "ORD-0058",
+    decision: decisionSemilla(
+      "SOL-2026-0178",
+      "aprobada",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      51_000_000,
+      "Escenario de prueba: la solicitud pertenece a otro ordenador del gasto.",
+      "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-9)} 14:00 COT`,
+      `${fechaCortaRelativa(-7)} 10:00 COT`,
+      "SIGA-2026-DEC-99868",
     ),
   },
 ];
@@ -1788,6 +2089,32 @@ const RESPONSABLE_MOCK: ResponsableDetalle = {
 };
 
 /**
+ * Catálogo de ordenadores del gasto de la semilla.
+ *
+ * PROVISIONAL: los códigos y nombres replican el cruce de SICAPITAL del
+ * asistente (ORD-0042 Rectoría, ORD-0061 Facultad Tecnológica, ORD-0058
+ * Facultad de Ingeniería). Cuando exista el backend, el nombre y la asignación
+ * vendrán de la consulta de la solicitud.
+ */
+const ORDENADORES_GASTO_MOCK: Readonly<Record<string, string>> = {
+  "ORD-0042": "ORD-0042 - Dr. Ricardo Gómez Morales",
+  "ORD-0058": "ORD-0058 - Ing. Jaime Alberto Rodríguez",
+  "ORD-0061": "ORD-0061 - Ing. Gloria Esperanza Useche",
+};
+
+/**
+ * Ordenador de la sesión simulada.
+ *
+ * PROVISIONAL: la sesión actual expone roles, no la identidad de la persona.
+ * La implementación HTTP debe obtener este código del token/backend; el
+ * componente nunca lo envía.
+ */
+const ORDENADOR_GASTO_SESION_MOCK = {
+  id: "ORD-0042",
+  nombre: "Dr. Ricardo Gómez Morales",
+} as const;
+
+/**
  * Borradores que ya tienen expediente técnico cargado.
  *
  * La solicitud de referencia de S-04 (`SOL-2026-0047`) es un borrador real: ya
@@ -1847,7 +2174,15 @@ function generalDetalle(solicitud: Solicitud): GeneralDetalle {
     aprobacion: "Aprobación Consejo Superior: Acuerdo 012 de 2024",
   };
 
-  return { responsable: RESPONSABLE_MOCK, caracteristicas, planAccion };
+  const ordenadorGasto =
+    ORDENADORES_GASTO_MOCK[solicitud.ordenadorGastoId ?? ""] ??
+    RESPONSABLE_MOCK.ordenadorGasto;
+
+  return {
+    responsable: { ...RESPONSABLE_MOCK, ordenadorGasto },
+    caracteristicas,
+    planAccion,
+  };
 }
 
 /**
@@ -1935,6 +2270,15 @@ const CDP_POR_SOLICITUD: Readonly<Record<string, number>> = {
   "SOL-2026-0165": 320_000_000,
   "SOL-2026-0168": 320_000_000,
   "SOL-2026-0169": 320_000_000,
+  "SOL-2026-0170": 320_000_000,
+  "SOL-2026-0171": 320_000_000,
+  "SOL-2026-0172": 320_000_000,
+  "SOL-2026-0173": 320_000_000,
+  "SOL-2026-0174": 320_000_000,
+  "SOL-2026-0175": 320_000_000,
+  "SOL-2026-0176": 320_000_000,
+  "SOL-2026-0177": 320_000_000,
+  "SOL-2026-0178": 320_000_000,
 };
 
 /**
@@ -4189,6 +4533,176 @@ export class SolicitudesServiceMock extends SolicitudesService {
     }).pipe(delay(retardo));
   }
 
+  /**
+   * Bandeja de validación del Ordenador del Gasto (O-01).
+   *
+   * Trucos de desarrollo (query params, sin tocar código):
+   * - `?mockValidaciones=error` → falla la consulta.
+   * - `?mockValidaciones=vacio` → bandeja sin registros.
+   * - `?mockRetardo=2500` → retardo en ms.
+   *
+   * PROVISIONAL: el ordenador de la sesión es la constante
+   * `ORDENADOR_GASTO_SESION_MOCK`; el backend debe resolverlo desde el token.
+   */
+  listarValidacionesOrdenador(
+    criterios: Partial<FiltroValidacionesOrdenador>,
+    pagina: number,
+    porPagina: number,
+  ): Observable<ResultadoListadoValidaciones> {
+    const params = new URLSearchParams(window.location.search);
+    const modo = params.get("mockValidaciones");
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (modo === "error") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible consultar las solicitudes pendientes de validación.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (modo === "vacio") {
+      return of({
+        validaciones: [],
+        total: 0,
+        conteos: conteosValidacionesVacios(),
+        dependencias: [],
+      }).pipe(delay(retardo));
+    }
+
+    const filas = DATOS_MOCK.map(
+      (solicitud) => this.filasEditadas.get(solicitud.id) ?? solicitud,
+    ).flatMap((solicitud) => {
+      const fila = this.filaValidacion(solicitud);
+      return fila ? [fila] : [];
+    });
+
+    const base = filas.filter((fila) =>
+      this.coincideValidacion(fila, criterios),
+    );
+    const conteos = contarValidaciones(base);
+    const filtradas = base.filter(
+      (fila) =>
+        !criterios.estadoValidacion ||
+        estadoValidacion(fila) === criterios.estadoValidacion,
+    );
+    // PROVISIONAL: el mockup ordena por número descendente; el criterio
+    // definitivo sigue abierto.
+    const factor = criterios.ordenNumero === "asc" ? 1 : -1;
+    const ordenadas = [...filtradas].sort(
+      (a, b) => factor * a.solicitud.id.localeCompare(b.solicitud.id),
+    );
+    const desde = pagina * porPagina;
+
+    return of({
+      validaciones: ordenadas.slice(desde, desde + porPagina),
+      total: ordenadas.length,
+      conteos,
+      dependencias: [
+        ...new Set(filas.map((fila) => fila.solicitud.dependencia)),
+      ].sort((a, b) => a.localeCompare(b, "es-CO")),
+    }).pipe(delay(retardo));
+  }
+
+  /**
+   * Proyecta una solicitud a la fila de validación, o `null` si no aplica.
+   *
+   * RN-02: solo las asignadas al ordenador de la sesión.
+   * RN-29: solo cuando el periodo de cotización terminó.
+   * Sin decisión no hay proveedor seleccionado que mostrar.
+   */
+  private filaValidacion(
+    solicitud: Solicitud,
+  ): SolicitudValidacionOrdenador | null {
+    const decision = solicitud.decision;
+    if (
+      !decision ||
+      solicitud.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id ||
+      !cierreSolicitudVencido(solicitud.cierre)
+    ) {
+      return null;
+    }
+
+    const proveedor = PROVEEDORES_MOCK.find(
+      (item) => item.id === decision.proveedorId,
+    );
+    const invitacion =
+      INVITACIONES_PROVEEDOR_MOCK.find(
+        (item) => item.id === decision.invitacionId,
+      ) ?? null;
+
+    return {
+      solicitud,
+      decision,
+      proveedor: {
+        id: decision.proveedorId,
+        nombre: decision.proveedorNombre,
+        nit: proveedor?.nit ?? null,
+      },
+      invitacion,
+    };
+  }
+
+  private coincideValidacion(
+    fila: SolicitudValidacionOrdenador,
+    criterios: Partial<FiltroValidacionesOrdenador>,
+  ): boolean {
+    const {
+      vigencia,
+      unidadEjecutora,
+      tipoCotizacion,
+      dependencia,
+      busqueda,
+      desde,
+      hasta,
+    } = criterios;
+
+    if (vigencia && vigencia !== "historico") {
+      if (String(fila.solicitud.vigencia) !== vigencia) {
+        return false;
+      }
+    }
+
+    if (
+      unidadEjecutora &&
+      fila.solicitud.unidadEjecutora !== unidadEjecutora
+    ) {
+      return false;
+    }
+
+    if (tipoCotizacion && fila.solicitud.tipoCotizacion !== tipoCotizacion) {
+      return false;
+    }
+
+    if (dependencia && fila.solicitud.dependencia !== dependencia) {
+      return false;
+    }
+
+    const texto = busqueda?.trim().toLowerCase();
+    if (texto) {
+      const coincide = [
+        fila.solicitud.id,
+        fila.solicitud.titulo,
+        fila.proveedor.nombre,
+        fila.proveedor.nit ?? "",
+      ].some((valor) => valor.toLowerCase().includes(texto));
+      if (!coincide) {
+        return false;
+      }
+    }
+
+    const fecha = fechaProcesamientoIso(fila.decision.envio.fecha);
+    if (desde && (!fecha || fecha < desde)) {
+      return false;
+    }
+    if (hasta && (!fecha || fecha > hasta)) {
+      return false;
+    }
+
+    return true;
+  }
+
   obtenerPorId(id: string): Observable<SolicitudDetalle | null> {
     const params = new URLSearchParams(window.location.search);
     const retardo = Number(params.get("mockRetardo")) || 700;
@@ -5851,4 +6365,33 @@ function contarInvitaciones(
     conteos[grupoDeInvitacion(invitacion.estado)] += 1;
   }
   return conteos;
+}
+
+/**
+ * Contadores de la bandeja de validación (O-01).
+ *
+ * `validadasMes` se calcula con la fecha de la validación final; el periodo es
+ * el mes calendario en curso (decisión de negocio sobre el mockup, que hablaba
+ * de «esta semana»). PROVISIONAL.
+ */
+function contarValidaciones(
+  filas: readonly SolicitudValidacionOrdenador[],
+): ConteosValidaciones {
+  const conteos: Record<GrupoFiltroValidacion, number> = {
+    todas: filas.length,
+    "por-validar": 0,
+    "validada-aprobada": 0,
+    "validada-rechazada": 0,
+  };
+  for (const fila of filas) {
+    conteos[estadoValidacion(fila)] += 1;
+  }
+  return {
+    ...conteos,
+    validadasMes: filas.filter(
+      (fila) =>
+        !!fila.decision.validacion &&
+        esMesActual(fila.decision.validacion.fecha),
+    ).length,
+  };
 }

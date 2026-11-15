@@ -5,6 +5,7 @@ import {
   rolGuard,
 } from "src/app/core/_guards/rol.guard";
 import {
+  ROLES_ORDENADOR,
   ROL_PROVEEDOR,
   ROLES_SOLICITANTE,
 } from "src/app/core/constants/roles.const";
@@ -28,6 +29,30 @@ const routes: Routes = [
       import("./solicitante/solicitante.module").then(
         (m) => m.SolicitanteModule,
       ),
+  },
+  /*
+   * Área exclusiva del Ordenador del Gasto (RN-32). Las rutas internas
+   * (`:id/resultado`, `:id/validar`, `modificaciones-pendientes`) viven dentro
+   * de este módulo, así que no colisionan con `solicitudes` ni con
+   * `bandeja-solicitudes`.
+   */
+  {
+    path: "bandeja-validacion",
+    canMatch: [rolGuard],
+    data: { roles: ROLES_ORDENADOR },
+    loadChildren: () =>
+      import("./ordenador/ordenador.module").then((m) => m.OrdenadorModule),
+  },
+  /*
+   * Alias de O-04: la propuesta nombra la bandeja como `modificaciones-pendientes`
+   * y el Root puede enlazarla en cualquiera de las dos formas. Como los
+   * redirects se resuelven antes de los guards, la autorización la aplica el
+   * `rolGuard` de `validacion`.
+   */
+  {
+    path: "modificaciones-pendientes",
+    redirectTo: "validacion/modificaciones-pendientes",
+    pathMatch: "full",
   },
   /*
    * El orden importa: esta ruta debe evaluarse ANTES del redirect de
