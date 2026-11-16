@@ -5,6 +5,10 @@ import {
   ObservacionesServiceMock,
 } from "./services/observaciones.service";
 import {
+  OferentesService,
+  OferentesServiceMock,
+} from "./services/oferentes.service";
+import {
   SolicitudesService,
   SolicitudesServiceMock,
 } from "./services/solicitudes.service";
@@ -28,6 +32,13 @@ import {
       provide: RespuestaProveedorService,
       useClass: RespuestaProveedorServiceMock,
     },
+    /*
+     * Único punto de enlace del tablero de oferentes (S-07), el comparador
+     * (S-09), el detalle del proveedor (S-10) y el resultado de la validación
+     * (O-02). Vive aquí, y no en el área solicitante, porque el ordenador del
+     * gasto también lo consume.
+     */
+    { provide: OferentesService, useClass: OferentesServiceMock },
   ],
 })
 export class CotizacionesModule {}

@@ -12,6 +12,10 @@
  */
 
 import { EstadoSolicitud } from "src/app/core/constants/estados-solicitud.const";
+import type {
+  EtiquetaLineaTiempo,
+  EventoLineaTiempo,
+} from "src/app/shared/components/linea-tiempo/linea-tiempo.component";
 
 /** Naturaleza del evento dentro del trámite. */
 export type TipoEventoHistorial =
@@ -135,8 +139,7 @@ export interface EventoHistorial {
  *
  * Es la fuente única del "tiempo en trámite" que muestra el pie de la
  * bitácora: se calcula sobre los eventos ya ordenados.
- */
-export function diasEnTramite(eventos: readonly EventoHistorial[]): number {
+ */export function diasEnTramite(eventos: readonly EventoHistorial[]): number {
   if (eventos.length < 2) {
     return 0;
   }
@@ -151,4 +154,45 @@ export function diasEnTramite(eventos: readonly EventoHistorial[]): number {
 
   const dias = Math.round((Math.max(...marcas) - Math.min(...marcas)) / 86_400_000);
   return dias < 0 ? 0 : dias;
+}
+
+/**
+ * Traduce un evento de la bitácora al modelo genérico de la línea de tiempo.
+ *
+ * Lo comparten la pestaña «Historial» del detalle (S-03) y el resultado de la
+ * validación (O-02), de modo que el mismo evento se pinta igual desde los dos
+ * roles y no hay dos traducciones.
+ */
+export function eventoLineaTiempoHistorial(
+  evento: EventoHistorial,
+): EventoLineaTiempo {
+  const etiquetas: EtiquetaLineaTiempo[] = [
+    { texto: etiquetaTipoEvento(evento.tipo), tono: "neutro" },
+  ];
+  // La subsanación no cambia el estado de la solicitud: repetir el mismo chip
+  // en cada evento sería ruido. El tipo de evento ya identifica la actuación.
+  const esSubsanacion = evento.tipo === "subsanacion";
+
+  return {
+    id: evento.id,
+    titulo: evento.titulo,
+    icono: evento.icono,
+    tono: evento.tono,
+    fecha: evento.fecha,
+    fechaIso: evento.fechaIso,
+    etiquetas,
+    estado: esSubsanacion ? undefined : evento.estadoNuevo,
+    estadoAnterior: esSubsanacion ? undefined : evento.estadoAnterior,
+    resultado: evento.resultado
+      ? { texto: evento.resultado, tono: evento.tonoResultado ?? "neutro" }
+      : undefined,
+    detalle: evento.detalle,
+    sello: evento.sello,
+    autor: {
+      usuario: evento.usuario,
+      nombre: evento.nombreUsuario,
+      rol: evento.rol,
+    },
+    evidencia: evento.evidencia,
+  };
 }

@@ -398,6 +398,18 @@ export class PermisosSolicitudService {
   /* ───────────── Validación del Ordenador del Gasto (O-01) ───────────── */
 
   /**
+   * RN-32: solo el Ordenador del Gasto entra al submódulo de validaciones.
+   *
+   * Es la única regla de rol de O-02. La asignación concreta de cada solicitud
+   * (RN-02) la resuelve la capa de datos, no la plantilla.
+   */
+  puedeAccederValidaciones(): boolean {
+    return (
+      this.rol.estaCargado() && this.rol.tieneRol(ROL_ORDENADOR_DEL_GASTO)
+    );
+  }
+
+  /**
    * Acciones que ofrece una fila de la bandeja de validación.
    *
    * RN-32: solo el Ordenador del Gasto las ve. El estado y las acciones salen

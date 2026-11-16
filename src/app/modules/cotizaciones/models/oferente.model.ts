@@ -153,6 +153,14 @@ interface ConfigOferentesSolicitud {
   readonly sinRespuestas?: boolean;
   /** Cuántos de los invitados respondieron (por defecto 4). */
   readonly responderian?: number;
+  /**
+   * Proveedores que respondieron, por identificador.
+   *
+   * Tiene prioridad sobre `responderian` y permite que el proveedor decidido en
+   * las semillas de validación (O-01/O-02) tenga oferta aunque no esté entre
+   * los primeros elegibles del banco.
+   */
+  readonly proveedoresConRespuesta?: readonly string[];
   /** Proveedores que radicaron una adenda después de responder. */
   readonly modificados?: readonly string[];
   /** Observaciones por proveedor (para el foro y el contador de postulados). */
@@ -234,6 +242,43 @@ const CONFIG_OFERENTES: Readonly<
   "SOL-2026-0169": {
     // Periodo de subsanación activo con todos los documentos cargados (P-08).
     responderian: 28,
+  },
+  /*
+   * Bandeja de validación y resultado de la validación (O-01/O-02): el
+   * proveedor decidido debe tener oferta para que aparezca resaltado (RN-33) y
+   * su detalle sea consultable. Se declaran tres ofertas por proceso, como en
+   * el mockup, y el decidido es siempre uno de los que respondieron.
+   */
+  "SOL-2026-0170": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0171": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0172": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0173": {
+    // Mixta con idoneidad: el decidido debe pertenecer al núcleo SISTEMAS.
+    // Con adenda radicada: alimenta la versión vigente del resultado (O-02).
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-03"],
+    modificados: ["prov-03"],
+  },
+  "SOL-2026-0174": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0175": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0176": {
+    // Plazo vigente: O-02 explica el bloqueo de RN-29 con la tabla sin datos.
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0177": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
+  },
+  "SOL-2026-0178": {
+    proveedoresConRespuesta: ["prov-01", "prov-02", "prov-28"],
   },
 };
 
@@ -330,11 +375,14 @@ export function crearOferentes(
   const respondieron = config.sinRespuestas
     ? 0
     : config.responderian ?? Math.min(4, elegibles.length);
+  const conRespuesta = config.proveedoresConRespuesta ?? null;
   const requeridos = solicitud.documentos?.requeridos.length ?? 0;
 
   return elegibles.map((proveedor, indice) => {
     const observaciones = config.observaciones?.[proveedor.id] ?? 0;
-    const responde = indice < respondieron;
+    const responde = conRespuesta
+      ? conRespuesta.includes(proveedor.id)
+      : indice < respondieron;
     const modificado = responde && !!config.modificados?.includes(proveedor.id);
 
     const fechaEnvioIso = responde

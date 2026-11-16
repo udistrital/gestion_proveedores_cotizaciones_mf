@@ -1,0 +1,427 @@
+<div class="dialogo">
+  <header class="dialogo__cabecera">
+    <span class="dialogo__icono" aria-hidden="true">
+      <mat-icon>{{ icono }}</mat-icon>
+    </span>
+    <div class="dialogo__textos">
+      <h2 class="dialogo__titulo" id="dialogo-detalle-titulo">{{ titulo }}</h2>
+      <p class="dialogo__subtitulo">
+        {{ datos.solicitud.id }} · {{ datos.solicitud.titulo }}
+      </p>
+    </div>
+    <button
+      type="button"
+      class="dialogo__cerrar"
+      aria-label="Cerrar el detalle"
+      (click)="cerrar()"
+    >
+      <mat-icon aria-hidden="true">close</mat-icon>
+    </button>
+  </header>
+
+  <div class="dialogo__contenido" aria-labelledby="dialogo-detalle-titulo">
+    @if (estado() === "cargando") {
+      <div class="dialogo__cargando" aria-busy="true" aria-live="polite">
+        <mat-spinner diameter="32" aria-hidden="true"></mat-spinner>
+        <span>Cargando el detalle del proveedor…</span>
+      </div>
+    } @else if (estado() === "error") {
+      <div class="dialogo__error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <p>{{ error() }}</p>
+        <button type="button" class="boton-recto" (click)="cargar()">
+          <mat-icon aria-hidden="true">refresh</mat-icon>
+          <span>Reintentar</span>
+        </button>
+      </div>
+    } @else if (detalle(); as d) {
+      <div class="dialogo__identidad">
+        <div class="dialogo__identidad-textos">
+          <p class="dialogo__nombre">{{ d.oferente.proveedor.nombre }}</p>
+          <span class="chip chip--recto">{{ documento() }}</span>
+          <span class="chip chip--recto">{{ tipoPersona() }}</span>
+          @if (d.seleccionado) {
+            <span class="chip chip--advertencia">
+              <mat-icon aria-hidden="true">check_circle</mat-icon>
+              <span>Proveedor seleccionado</span>
+            </span>
+          } @else {
+            <span class="chip chip--neutro">No seleccionado</span>
+          }
+        </div>
+      </div>
+
+      <!-- ─────────────────────────── Persona ─────────────────────────── -->
+      @if (datos.vista === "persona") {
+        <div class="datos-grid datos-grid--dos">
+          <par-etiqueta-valor
+            etiqueta="Razón social / nombre"
+            [valor]="d.oferente.proveedor.nombre"
+            icono="business"
+          />
+          <par-etiqueta-valor
+            etiqueta="Documento"
+            [valor]="documento()"
+            icono="fingerprint"
+          />
+          <par-etiqueta-valor
+            etiqueta="Tipo de persona"
+            [valor]="tipoPersona()"
+            icono="badge"
+          />
+          <par-etiqueta-valor
+            etiqueta="Representante"
+            [valor]="representante()"
+            icono="person"
+          />
+          <par-etiqueta-valor
+            etiqueta="Correo electrónico"
+            [valor]="correo()"
+            icono="mail"
+          />
+          <par-etiqueta-valor
+            etiqueta="Dirección"
+            [valor]="direccion()"
+            icono="location_on"
+          />
+          <par-etiqueta-valor
+            etiqueta="Ubicación"
+            [valor]="ubicacion()"
+            icono="map"
+          />
+          <par-etiqueta-valor
+            etiqueta="Sitio web"
+            [valor]="sitioWeb()"
+            icono="language"
+          />
+        </div>
+
+        <section class="dialogo__bloque" aria-labelledby="dialogo-ciiu">
+          <h3 id="dialogo-ciiu">Actividades económicas (CIIU)</h3>
+          <div class="dialogo__chips">
+            @for (actividad of d.actividades; track actividad.codigo) {
+              <span
+                class="chip"
+                [class.chip--exito]="actividad.coincide"
+                [class.chip--neutro]="!actividad.coincide"
+              >
+                <span>{{ actividad.codigo }}</span>
+                <span>- {{ actividad.descripcion }}</span>
+                <span class="visually-oculto">
+                  {{
+                    actividad.coincide
+                      ? "Concuerda con el objeto"
+                      : "No concuerda con el objeto"
+                  }}
+                </span>
+              </span>
+            }
+          </div>
+          <p class="dialogo__nota">
+            Núcleo de idoneidad: {{ d.nucleoSnies }}
+            @if (d.requiereIdoneidad) {
+              <span class="chip chip--info">Idoneidad exigida</span>
+            }
+          </p>
+        </section>
+      }
+
+      <!-- ────────────────── Respuesta del solicitante ─────────────────── -->
+      @if (datos.vista === "respuesta") {
+        @if (decision(); as decision) {
+          <div class="dialogo__bloque">
+            <h3>Estado de la decisión</h3>
+            <p class="dialogo__estado">
+              <span
+                class="chip"
+                [class.chip--exito]="decision.fase === 'aprobada'"
+                [class.chip--error]="decision.fase === 'rechazada'"
+                [class.chip--advertencia]="decision.fase === 'enviada'"
+              >
+                <mat-icon aria-hidden="true">
+                  {{
+                    decision.fase === "aprobada"
+                      ? "verified"
+                      : decision.fase === "rechazada"
+                        ? "cancel"
+                        : "pending_actions"
+                  }}
+                </mat-icon>
+                <span>
+                  {{
+                    decision.fase === "aprobada"
+                      ? "Aprobada por el Ordenador del Gasto"
+                      : decision.fase === "rechazada"
+                        ? "Rechazada por el Ordenador del Gasto"
+                        : "Enviada a validación"
+                  }}
+                </span>
+              </span>
+            </p>
+
+            <h3>Respuesta y recomendaciones</h3>
+            <div
+              class="dialogo__texto"
+              [innerHTML]="justificacion() | htmlSeguro"
+            ></div>
+          </div>
+
+          <div class="datos-grid datos-grid--dos">
+            <par-etiqueta-valor
+              etiqueta="Enviada por"
+              [valor]="decision.envio.autor"
+              [nota]="decision.envio.rol"
+              icono="person"
+            />
+            <par-etiqueta-valor
+              etiqueta="Fecha del envío"
+              [valor]="decision.envio.fecha"
+              icono="event_available"
+            />
+            @if (decision.validacion; as validacion) {
+              <par-etiqueta-valor
+                etiqueta="Validada por"
+                [valor]="validacion.autor"
+                [nota]="validacion.rol"
+                icono="verified_user"
+              />
+              <par-etiqueta-valor
+                etiqueta="Fecha de la validación"
+                [valor]="validacion.fecha"
+                icono="event_available"
+              />
+            }
+            <par-etiqueta-valor
+              etiqueta="Código de verificación"
+              [valor]="decision.codigoVerificacion"
+              icono="fingerprint"
+            />
+            <par-etiqueta-valor
+              etiqueta="Notificación al proveedor"
+              [valor]="
+                decision.envio.notificar
+                  ? 'Programada (simulada)'
+                  : 'No registrada'
+              "
+              icono="mark_email_read"
+            />
+          </div>
+        } @else {
+          <div class="dialogo__vacio" role="status">
+            <mat-icon aria-hidden="true">info</mat-icon>
+            <p>
+              Este proveedor no fue el seleccionado por el solicitante, así que
+              no tiene una respuesta registrada en este expediente.
+            </p>
+          </div>
+        }
+      }
+
+      <!-- ────────────────────── Cotización recibida ──────────────────── -->
+      @if (datos.vista === "cotizacion") {
+        @if (oferta(); as ofertaActual) {
+          @if (ofertaActual.excedePresupuesto) {
+            <div class="dialogo__aviso" role="status">
+              <mat-icon aria-hidden="true">warning</mat-icon>
+              <p>
+                Esta oferta supera el techo presupuestal de
+                <strong>{{ moneda(ofertaActual.valorPresupuesto) }}</strong> y no
+                se tiene en cuenta para la comparación (RN-40).
+              </p>
+            </div>
+          }
+
+          <div class="datos-grid datos-grid--dos">
+            <par-etiqueta-valor
+              etiqueta="Radicado"
+              [valor]="ofertaActual.radicado"
+              icono="tag"
+            />
+            <par-etiqueta-valor
+              etiqueta="Versión"
+              [valor]="ofertaActual.version"
+              [nota]="
+                ofertaActual.modificadaEl
+                  ? 'Modificada el ' + ofertaActual.modificadaEl
+                  : 'Versión original'
+              "
+              icono="history_edu"
+            />
+            <par-etiqueta-valor
+              etiqueta="Fecha de radicación"
+              [valor]="ofertaActual.fechaEnvio"
+              icono="event_available"
+            />
+            <par-etiqueta-valor
+              etiqueta="Validez de la oferta"
+              [valor]="ofertaActual.oferta.validezDias + ' días calendario'"
+              icono="schedule"
+            />
+            <par-etiqueta-valor
+              etiqueta="Plazo de entrega"
+              [valor]="ofertaActual.oferta.plazoEntregaDias + ' días calendario'"
+              icono="local_shipping"
+            />
+            <par-etiqueta-valor
+              etiqueta="Condiciones comerciales"
+              [valor]="ofertaActual.oferta.condicionesComerciales"
+              [nota]="
+                ofertaActual.oferta.descuentoPorcentaje > 0
+                  ? ofertaActual.oferta.descuentoPorcentaje + '% de descuento'
+                  : 'Sin descuentos adicionales'
+              "
+              icono="handshake"
+            />
+          </div>
+
+          <section class="dialogo__bloque" aria-labelledby="dialogo-items">
+            <h3 id="dialogo-items">Ítems ofertados</h3>
+            <div class="tabla-detalle__scroll">
+              <table class="tabla-detalle">
+                <caption class="visually-oculto">
+                  Ítems ofertados por {{ d.oferente.proveedor.nombre }} para la
+                  solicitud {{ datos.solicitud.id }}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="tabla-detalle__th">Ítem</th>
+                    <th scope="col" class="tabla-detalle__th tabla-detalle__th--centro">
+                      Cant.
+                    </th>
+                    <th scope="col" class="tabla-detalle__th tabla-detalle__th--numero">
+                      Valor unitario
+                    </th>
+                    <th scope="col" class="tabla-detalle__th tabla-detalle__th--centro">
+                      IVA
+                    </th>
+                    <th scope="col" class="tabla-detalle__th tabla-detalle__th--numero">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (fila of filas(); track fila.item.id) {
+                    <tr class="tabla-detalle__fila">
+                      <td class="tabla-detalle__td">
+                        <span class="tabla-detalle__celda-titulo">
+                          {{ fila.item.nombre }}
+                        </span>
+                        <span class="tabla-detalle__celda-nota">
+                          {{ fila.item.descripcion }}
+                        </span>
+                        @if (fila.nota) {
+                          <span class="tabla-detalle__celda-nota">
+                            Nota del proveedor: {{ fila.nota }}
+                          </span>
+                        }
+                        @if (fila.superaTecho) {
+                          <span class="chip chip--advertencia">
+                            Supera el valor techo del ítem
+                          </span>
+                        }
+                      </td>
+                      <td class="tabla-detalle__td tabla-detalle__td--centro">
+                        {{ fila.item.cantidad }} {{ fila.item.unidad }}
+                      </td>
+                      <td class="tabla-detalle__td tabla-detalle__td--numero">
+                        {{ moneda(fila.valorUnitario) }}
+                      </td>
+                      <td class="tabla-detalle__td tabla-detalle__td--centro">
+                        {{ fila.etiquetaIva }}
+                      </td>
+                      <td class="tabla-detalle__td tabla-detalle__td--numero">
+                        {{ moneda(fila.total) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="dialogo__bloque" aria-labelledby="dialogo-totales">
+            <h3 id="dialogo-totales">Desglose económico</h3>
+            <dl class="dialogo__totales">
+              <div>
+                <dt>Subtotal ofertado</dt>
+                <dd>{{ moneda(ofertaActual.oferta.totales.subtotal) }} COP</dd>
+              </div>
+              @if (ofertaActual.oferta.totales.descuento > 0) {
+                <div>
+                  <dt>
+                    Descuento ({{ ofertaActual.oferta.descuentoPorcentaje }}%)
+                  </dt>
+                  <dd class="dialogo__descuento">
+                    - {{ moneda(ofertaActual.oferta.totales.descuento) }} COP
+                  </dd>
+                </div>
+              }
+              <div>
+                <dt>Base gravable</dt>
+                <dd>{{ moneda(ofertaActual.oferta.totales.baseGravable) }} COP</dd>
+              </div>
+              <div>
+                <dt>IVA</dt>
+                <dd>{{ moneda(ofertaActual.oferta.totales.iva) }} COP</dd>
+              </div>
+              <div class="dialogo__total">
+                <dt>Total con IVA</dt>
+                <dd>{{ moneda(ofertaActual.total) }} COP</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="dialogo__bloque" aria-labelledby="dialogo-documentos">
+            <h3 id="dialogo-documentos">Documentos radicados</h3>
+            <ul class="dialogo__documentos">
+              @for (documento of documentos(); track documento.id) {
+                <li>
+                  <mat-icon aria-hidden="true">{{ documento.icono }}</mat-icon>
+                  <span class="dialogo__documento-nombre">
+                    {{ documento.nombre }}
+                    <span class="tabla-detalle__celda-nota">
+                      {{ documento.nombreArchivo }} · {{ documento.peso }} ·
+                      {{ etiquetaEstadoDocumento(documento) }}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    class="boton-recto"
+                    [attr.aria-label]="'Descargar ' + documento.nombre"
+                    (click)="abrirDocumento(documento)"
+                  >
+                    <mat-icon aria-hidden="true">download</mat-icon>
+                  </button>
+                </li>
+              } @empty {
+                <li class="dialogo__documento-vacio">
+                  La oferta no registra documentos radicados.
+                </li>
+              }
+            </ul>
+          </section>
+        } @else {
+          <div class="dialogo__vacio" role="status">
+            <mat-icon aria-hidden="true">request_quote</mat-icon>
+            <p>
+              El proveedor fue invitado pero no radicó cotización para esta
+              solicitud. No hay información económica ni documental que revisar.
+            </p>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  <footer class="dialogo__pie">
+    @if (estado() === "listo") {
+      <button type="button" class="boton-recto" (click)="verDetalleCompleto()">
+        <mat-icon aria-hidden="true">open_in_new</mat-icon>
+        <span>Ver detalle completo</span>
+      </button>
+    }
+    <button type="button" class="boton-recto boton-recto--vino" (click)="cerrar()">
+      <span>Cerrar</span>
+    </button>
+  </footer>
+</div>

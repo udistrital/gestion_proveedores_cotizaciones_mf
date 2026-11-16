@@ -31,10 +31,7 @@ const routes: Routes = [
       ),
   },
   /*
-   * Área exclusiva del Ordenador del Gasto (RN-32). Las rutas internas
-   * (`:id/resultado`, `:id/validar`, `modificaciones-pendientes`) viven dentro
-   * de este módulo, así que no colisionan con `solicitudes` ni con
-   * `bandeja-solicitudes`.
+   * Área exclusiva del Ordenador del Gasto (RN-32).
    */
   {
     path: "bandeja-validacion",

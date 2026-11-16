@@ -907,12 +907,12 @@ export const ACCIONES_VALIDACION: Readonly<
   "ver-resultado": {
     etiqueta: "Resultado y cuadro comparativo",
     icono: "fact_check",
-    ruta: "cotizaciones/validacion/:id/resultado",
+    ruta: "cotizaciones/bandeja-validacion/:id/resultado",
   },
   validar: {
     etiqueta: "Validar decisión",
     icono: "verified",
-    ruta: "cotizaciones/validacion/:id/validar",
+    ruta: "cotizaciones/bandeja-validacion/:id/validar",
     principal: true,
   },
 };

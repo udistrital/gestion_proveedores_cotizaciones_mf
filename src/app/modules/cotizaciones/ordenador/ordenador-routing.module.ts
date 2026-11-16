@@ -2,6 +2,8 @@ import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { BandejaValidacionComponent } from "./pages/bandeja-validacion/bandeja-validacion.component";
 import { PantallaOrdenadorPlaceholderComponent } from "./pages/pantalla-proximamente/pantalla-ordenador-placeholder.component";
+import { ResultadoValidacionComponent } from "./pages/resultado-validacion/resultado-validacion.component";
+import { resultadoValidacionResolver } from "./resolvers/resultado-validacion.resolver";
 
 /**
  * Rutas del área del Ordenador del Gasto (O-01 a O-04).
@@ -36,12 +38,9 @@ const routes: Routes = [
   },
   {
     path: ":id/resultado",
-    component: PantallaOrdenadorPlaceholderComponent,
-    title: "ÁGORA · Resultado de la validación",
-    data: {
-      titulo: "Resultado de la validación",
-      pantalla: "O-02",
-    },
+    component: ResultadoValidacionComponent,
+    resolve: { resultado: resultadoValidacionResolver },
+    title: "ÁGORA · Resultado de la solicitud",
   },
   {
     path: ":id/validar",

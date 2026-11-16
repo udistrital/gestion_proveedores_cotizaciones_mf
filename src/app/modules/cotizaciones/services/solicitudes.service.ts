@@ -53,6 +53,7 @@ import type {
 } from "../models/validacion-ordenador.model";
 import type { ResultadoProveedor } from "../models/resultado-proveedor.model";
 import { construirResultadoProveedor } from "../models/resultado-proveedor.model";
+import type { ConsultaValidacionOrdenador } from "../models/resultado-validacion-ordenador.model";
 import {
   CaracteristicasDetalle,
   ContadoresPestanas,
@@ -188,6 +189,21 @@ export abstract class SolicitudesService {
    * traduce ese `null` al estado "solicitud no encontrada".
    */
   abstract obtenerPorId(id: string): Observable<SolicitudDetalle | null>;
+
+  /**
+   * Expediente de una solicitud visto desde la validación del OG (O-02).
+   *
+   * Es el único punto de enlace con el futuro backend para esta pantalla.
+   * Devuelve la solicitud con su decisión cuando está asignada al ordenador de
+   * la sesión (RN-02) y distingue los dos motivos por los que no puede abrirse:
+   * inexistente o asignada a otro despacho.
+   *
+   * No aplica RN-29: una solicitud con el plazo vigente debe poder abrirse para
+   * explicar que la validación aún no está disponible.
+   */
+  abstract obtenerValidacionOrdenador(
+    id: string,
+  ): Observable<ConsultaValidacionOrdenador>;
 
   /** Detalle autorizado de una invitación en el portal del proveedor (P-02). */
   abstract obtenerDetalleProveedor(
@@ -523,7 +539,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "aprobada",
       "prov-02",
       "Soluciones Tecnológicas Universitarias LTDA",
-      40_150_000,
+      210_051_660,
       "Se selecciona la oferta por cumplir el 100% de las especificaciones técnicas y presentar la mejor relación costo-beneficio.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso.",
       "22/10/2026 14:32 COT",
@@ -552,7 +568,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "rechazada",
       "prov-01",
       "Redes y Servidores de Colombia S.A.S.",
-      36_980_000,
+      201_972_750,
       "La oferta no acredita el cumplimiento integral de las especificaciones técnicas ni el plazo de disponibilidad exigido.",
       "Se rechaza la oferta y se declara desierta la convocatoria por incumplimiento de los requisitos habilitantes.",
       "22/09/2026 10:05 COT",
@@ -581,7 +597,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "aprobada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      98_450_000,
+      193_893_840,
       "Se selecciona la oferta por cumplir el 100% de las especificaciones técnicas y presentar la mejor relación costo-beneficio.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso. Se solicita al proveedor alistar la documentación para la formalización.",
       "06/11/2026 10:15 COT",
@@ -610,7 +626,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "rechazada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      84_220_000,
+      193_893_840,
       "La oferta cumple las especificaciones técnicas, pero la validación documental identificó inconsistencias en los soportes habilitantes.",
       "Se rechaza la cotización por inconsistencias documentales en los soportes habilitantes. La desestimación no genera inhabilidad para futuros procesos de selección.",
       "04/11/2026 10:20 COT",
@@ -665,7 +681,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "SOL-2026-0167",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      45_900_000,
+      193_893_840,
       "Se envía la oferta seleccionada a validación del Ordenador del Gasto por cumplir los requisitos técnicos y presupuestales.",
       "07/11/2026 11:20 COT",
       "SIGA-2026-DEC-99853",
@@ -691,7 +707,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "SOL-2026-0170",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      284_000_000,
+      193_893_840,
       "Se revisaron tres cotizaciones dentro del plazo. La oferta cumple el 100% de las especificaciones de latencia y respaldo y presenta el menor costo.",
       `${fechaCortaRelativa(-1)} 14:30 COT`,
       "SIGA-2026-DEC-99860",
@@ -717,7 +733,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "SOL-2026-0171",
       "prov-01",
       "Redes y Servidores de Colombia S.A.S.",
-      58_700_000,
+      201_972_750,
       "La oferta cubre el alcance del mantenimiento y el plazo de respuesta exigido; se remite para la validación del ordenador.",
       `${fechaCortaRelativa(-1)} 10:15 COT`,
       "SIGA-2026-DEC-99861",
@@ -744,8 +760,8 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "aprobada",
       "prov-02",
       "Soluciones Tecnológicas Universitarias LTDA",
-      75_820_000,
-      "La oferta cumple las fichas técnicas y presenta el menor valor entre las cotizaciones recibidas.",
+      210_051_660,
+      "La oferta cumple las fichas técnicas y acredita la experiencia exigida para el suministro de reactivos.",
       "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
       `${fechaCortaRelativa(-6)} 16:45 COT`,
       `${fechaCortaRelativa(-4)} 09:10 COT`,
@@ -771,9 +787,9 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     decision: decisionSemilla(
       "SOL-2026-0173",
       "rechazada",
-      "prov-28",
-      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      98_400_000,
+      "prov-03",
+      "DataCloud Andina S.A.S.",
+      218_130_570,
       "La oferta no acredita la experiencia específica en adecuación acústica exigida en los requisitos habilitantes.",
       "Se rechaza la cotización y se devuelve al solicitante con observaciones técnicas.",
       `${fechaCortaRelativa(-7)} 15:10 COT`,
@@ -802,7 +818,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "aprobada",
       "prov-02",
       "Soluciones Tecnológicas Universitarias LTDA",
-      112_000_000,
+      210_051_660,
       "La póliza cumple las coberturas mínimas y el respaldo patrimonial solicitado por la Oficina Asesora Jurídica.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso.",
       `${fechaCortaRelativa(-9)} 12:00 COT`,
@@ -831,7 +847,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "aprobada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      64_900_000,
+      193_893_840,
       "La oferta cumple las especificaciones técnicas y el plan de instalación en los talleres de creación.",
       "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
       `${fechaCortaRelativa(-11)} 17:20 COT`,
@@ -863,7 +879,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "SOL-2026-0176",
       "prov-01",
       "Redes y Servidores de Colombia S.A.S.",
-      20_000_000,
+      201_972_750,
       "Escenario de prueba: el plazo sigue vigente y la validación no debe habilitarse antes del cierre.",
       `${fechaCortaRelativa(-1)} 08:00 COT`,
       "SIGA-2026-DEC-99866",
@@ -889,7 +905,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "SOL-2026-0177",
       "prov-02",
       "Soluciones Tecnológicas Universitarias LTDA",
-      33_000_000,
+      210_051_660,
       "Escenario de prueba: la solicitud pertenece a otro ordenador del gasto.",
       `${fechaCortaRelativa(-5)} 15:00 COT`,
       "SIGA-2026-DEC-99867",
@@ -915,7 +931,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
       "aprobada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
-      51_000_000,
+      193_893_840,
       "Escenario de prueba: la solicitud pertenece a otro ordenador del gasto.",
       "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
       `${fechaCortaRelativa(-9)} 14:00 COT`,
@@ -4718,6 +4734,68 @@ export class SolicitudesServiceMock extends SolicitudesService {
       return of(null).pipe(delay(retardo));
     }
 
+    return of(this.construirDetalle(solicitud)).pipe(delay(retardo));
+  }
+
+  /**
+   * Expediente de una solicitud para la validación del OG (O-02).
+   *
+   * Trucos de desarrollo (query params, sin tocar código):
+   * - `?mockValidacion=error` → falla la consulta.
+   * - `?mockValidacion=no-encontrada` → simula un identificador inexistente.
+   * - `?mockValidacion=no-asignada` → simula una solicitud de otro despacho.
+   * - `?mockRetardo=2500` → retardo en ms.
+   *
+   * PROVISIONAL: el ordenador de la sesión es la constante
+   * `ORDENADOR_GASTO_SESION_MOCK`; el backend debe resolverlo desde el token.
+   */
+  obtenerValidacionOrdenador(
+    id: string,
+  ): Observable<ConsultaValidacionOrdenador> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 700;
+    const modo = params.get("mockValidacion");
+
+    if (modo === "error") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible consultar la solicitud para validación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (modo === "no-encontrada" || modo === "no-asignada") {
+      return of(
+        modo === "no-encontrada"
+          ? ({ estado: "no-encontrada" } as const)
+          : ({ estado: "no-asignada" } as const),
+      ).pipe(delay(retardo));
+    }
+
+    const solicitud = this.fila(id);
+    if (!solicitud) {
+      return of({ estado: "no-encontrada" } as const).pipe(delay(retardo));
+    }
+
+    if (solicitud.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id) {
+      return of({ estado: "no-asignada" } as const).pipe(delay(retardo));
+    }
+
+    return of({
+      estado: "ok",
+      solicitud: this.construirDetalle(solicitud),
+    } as const).pipe(delay(retardo));
+  }
+
+  /**
+   * Proyección de lectura completa de una solicitud.
+   *
+   * La comparten el detalle de S-03 y la validación de O-02 para que ambas
+   * pantallas vean el mismo expediente (edición vigente, modificación pendiente
+   * y bitácora con los eventos de subsanación).
+   */
+  private construirDetalle(solicitud: Solicitud): SolicitudDetalle {
     const edicion = this.edicionBase(solicitud);
     const pendiente =
       solicitud.modificacionPendiente ??
@@ -4727,15 +4805,14 @@ export class SolicitudesServiceMock extends SolicitudesService {
       : solicitud;
 
     const extras = [
-      ...(this.historialEdiciones.get(id) ?? []),
-      ...this.eventosSubsanacionHistorial(id, fila.estado),
+      ...(this.historialEdiciones.get(solicitud.id) ?? []),
+      ...this.eventosSubsanacionHistorial(solicitud.id, fila.estado),
     ];
-    const detalle = comoDetalle(fila, edicion, extras);
 
-    return of({
-      ...detalle,
-      subsanacion: this.ultimaSubsanacion(id),
-    }).pipe(delay(retardo));
+    return {
+      ...comoDetalle(fila, edicion, extras),
+      subsanacion: this.ultimaSubsanacion(solicitud.id),
+    };
   }
 
   obtenerDetalleProveedor(
