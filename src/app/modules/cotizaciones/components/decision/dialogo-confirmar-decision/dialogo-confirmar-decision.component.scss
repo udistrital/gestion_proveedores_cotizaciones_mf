@@ -170,6 +170,79 @@
   min-height: 2.5rem;
 }
 
+/* ── Variantes de la validación final (O-03) ─────────────────────────────── */
+
+.dialogo__icono--exito {
+  border-color: var(--agora-success-border);
+  background: var(--agora-success-surface);
+  color: var(--agora-success);
+}
+
+.dialogo__icono--error {
+  border-color: var(--agora-error-border);
+  background: var(--agora-error-surface);
+  color: var(--agora-error);
+}
+
+.dialogo__fila--decision {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--agora-borde-tarjeta);
+}
+
+.dialogo__resultado {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--agora-borde-tarjeta);
+  border-radius: var(--agora-radio-md);
+  font-size: var(--agora-font-xs);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dialogo__resultado--exito {
+  border-color: var(--agora-success-border);
+  background: var(--agora-success-surface);
+  color: var(--agora-success);
+}
+
+.dialogo__resultado--error {
+  border-color: var(--agora-error-border);
+  background: var(--agora-error-surface);
+  color: var(--agora-error);
+}
+
+.dialogo__respuesta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--agora-borde-tarjeta);
+}
+
+.dialogo__respuesta p {
+  margin: 0;
+  color: var(--agora-text);
+  font-size: var(--agora-font-sm);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.dialogo__aviso--exito {
+  border-color: var(--agora-success-border);
+  border-left: 3px solid var(--agora-success);
+  background: var(--agora-success-surface);
+  color: var(--agora-success);
+}
+
+.dialogo__aviso--error {
+  border-color: var(--agora-error-border);
+  border-left: 3px solid var(--agora-error);
+  background: var(--agora-error-surface);
+  color: var(--agora-error);
+}
+
 @media (max-width: t.$bp-xs) {
   .dialogo__cabecera,
   .dialogo__cuerpo,

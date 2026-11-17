@@ -86,7 +86,7 @@ export class ResultadoValidacionComponent implements OnInit {
   filaMenuAbierto: string | null = null;
 
   readonly breadcrumb =
-    "<p>Cotizaciones › Despacho Ordenador del Gasto › <b>Resultado de la solicitud</b></p>";
+    "<p>Gestión Proveedor › Cotizaciones › <b>Resultado de la solicitud</b></p>";
 
   readonly decision = computed<DecisionSolicitud | null>(
     () => this.solicitud()?.decision ?? null,

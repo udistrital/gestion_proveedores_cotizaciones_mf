@@ -3,10 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { Router } from "@angular/router";
 import { AlertService } from "src/app/shared/services/alert.service";
 import type { DecisionSolicitud } from "../../../models/decision.model";
-import {
-  decisionDeProveedor,
-  justificacionFinalDecision,
-} from "../../../models/decision.model";
+import { decisionDeProveedor } from "../../../models/decision.model";
 import { etiquetaEstadoDocumentoOferta } from "../../../models/documentos.model";
 import type {
   DetalleProveedorOferta,
@@ -127,11 +124,6 @@ export class DialogoDetalleOfertaValidacionComponent implements OnInit {
   readonly decision = computed<DecisionSolicitud | null>(() =>
     decisionDeProveedor(this.datos.solicitud, this.datos.proveedorId),
   );
-
-  readonly justificacion = computed(() => {
-    const decision = this.decision();
-    return decision ? justificacionFinalDecision(decision) : "";
-  });
 
   constructor(
     private readonly dialogRef: MatDialogRef<

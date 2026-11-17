@@ -37,6 +37,8 @@ import type {
   EnvioDecision,
   NotificacionDecision,
   RegistroEnvioDecision,
+  RegistroValidacionDecision,
+  ValidacionDecision,
 } from "../models/decision.model";
 import {
   conteosValidacionesVacios,
@@ -250,6 +252,31 @@ export abstract class SolicitudesService {
     id: string,
     datos: RegistroEnvioDecision,
   ): Observable<SolicitudDetalle>;
+
+  /**
+   * Registra la validación final del Ordenador del Gasto (O-03).
+   *
+   * Es el único punto de escritura de la decisión definitiva. Valida RN-32
+   * (despacho asignado), RN-29 (cierre vencido), RN-24 (mínimo 20), RN-35 (una
+   * sola respuesta) y RN-40 (una oferta sobre el techo no puede aprobarse).
+   *
+   * Deja la solicitud en `adjudicada` o `desierta`, actualiza la invitación
+   * cuando existe y devuelve el expediente para que la vista pase a solo
+   * lectura sin repetir la consulta.
+   */
+  abstract registrarValidacionDecision(
+    id: string,
+    datos: RegistroValidacionDecision,
+  ): Observable<SolicitudDetalle>;
+
+  /**
+   * true si el usuario corresponde al ordenador de la sesión simulada.
+   *
+   * PROVISIONAL: permite detectar el escenario de segregación de funciones
+   * (mismo usuario solicitante y validador) mientras la identidad real llega
+   * del token. El backend debe resolverlo sin exponer el identificador.
+   */
+  abstract esUsuarioOrdenadorSesion(usuario: string): boolean;
 
   /** Periodos de subsanación registrados para una solicitud (S-12). */
   abstract obtenerSubsanaciones(
@@ -2128,6 +2155,8 @@ const ORDENADORES_GASTO_MOCK: Readonly<Record<string, string>> = {
 const ORDENADOR_GASTO_SESION_MOCK = {
   id: "ORD-0042",
   nombre: "Dr. Ricardo Gómez Morales",
+  usuario: "rgomez",
+  rol: "Ordenador del Gasto",
 } as const;
 
 /**
@@ -4644,9 +4673,11 @@ export class SolicitudesServiceMock extends SolicitudesService {
       (item) => item.id === decision.proveedorId,
     );
     const invitacion =
+      this.invitacionesActualizadas.get(solicitud.id) ??
       INVITACIONES_PROVEEDOR_MOCK.find(
         (item) => item.id === decision.invitacionId,
-      ) ?? null;
+      ) ??
+      null;
 
     return {
       solicitud,
@@ -5191,6 +5222,184 @@ export class SolicitudesServiceMock extends SolicitudesService {
 
   obtenerSubsanaciones(id: string): Observable<readonly Subsanacion[]> {
     return of(this.subsanaciones.get(id) ?? []).pipe(delay(350));
+  }
+
+  /**
+   * Registra la validación final del Ordenador del Gasto (O-03).
+   *
+   * Trucos de desarrollo:
+   * - `?mockValidacion=error-guardado` → falla el guardado.
+   * - `?mockRetardo=2500` → retardo en ms.
+   */
+  registrarValidacionDecision(
+    id: string,
+    datos: RegistroValidacionDecision,
+  ): Observable<SolicitudDetalle> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (params.get("mockValidacion") === "error-guardado") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible registrar la decisión de validación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const actual = this.fila(id);
+    if (!actual) {
+      return throwError(
+        () => new Error("La solicitud ya no existe en el expediente."),
+      ).pipe(delay(retardo));
+    }
+
+    if (actual.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id) {
+      return throwError(
+        () =>
+          new Error(
+            "La solicitud está asignada a otro despacho del ordenador del gasto.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (actual.estado === "cancelada" || actual.estado === "borrador") {
+      return throwError(
+        () =>
+          new Error(
+            "La solicitud no admite validación en su estado actual.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const decision = actual.decision;
+    if (!decision) {
+      return throwError(
+        () =>
+          new Error(
+            "El solicitante aún no ha registrado una decisión para validar.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (decision.fase !== "enviada" || decision.validacion) {
+      return throwError(
+        () =>
+          new Error(
+            "La decisión ya fue validada y no admite cambios (RN-35).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (!cierreSolicitudVencido(actual.cierre)) {
+      return throwError(
+        () =>
+          new Error(
+            "El periodo de cotización aún no ha terminado; la validación se habilita al cierre (RN-29).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const justificacion = textoPlanoDesdeHtml(datos.justificacionHtml).trim();
+    if (justificacion.length < MIN_CARACTERES_JUSTIFICACION) {
+      return throwError(
+        () =>
+          new Error(
+            `La respuesta al proveedor debe tener al menos ${MIN_CARACTERES_JUSTIFICACION} caracteres (RN-24).`,
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (datos.resultado !== "aprobada" && datos.resultado !== "rechazada") {
+      return throwError(
+        () => new Error("Debe seleccionar si aprueba o rechaza la cotización."),
+      ).pipe(delay(retardo));
+    }
+
+    const valorCdp = presupuestoDetalle(actual)?.valorCdp ?? 0;
+    if (
+      datos.resultado === "aprobada" &&
+      valorCdp > 0 &&
+      decision.valor > valorCdp
+    ) {
+      return throwError(
+        () =>
+          new Error(
+            "La oferta supera el techo presupuestal y no puede aprobarse (RN-40).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const ahora = new Date();
+    const fecha = fechaHoraExpediente(ahora);
+    const validacion: ValidacionDecision = {
+      resultado: datos.resultado,
+      justificacion,
+      justificacionHtml: datos.justificacionHtml,
+      usuario: ORDENADOR_GASTO_SESION_MOCK.usuario,
+      autor: ORDENADOR_GASTO_SESION_MOCK.nombre,
+      rol: ORDENADOR_GASTO_SESION_MOCK.rol,
+      fecha,
+      fechaIso: ahora.toISOString(),
+    };
+
+    const notificaciones: readonly NotificacionDecision[] = datos.notificar
+      ? [
+          ...decision.notificaciones,
+          {
+            destinatario: decision.proveedorNombre,
+            correo: datos.correoProveedor ?? "",
+            fecha,
+            fechaIso: ahora.toISOString(),
+            tipo: datos.resultado === "aprobada" ? "adjudicacion" : "rechazo",
+            estadoEntrega: "simulada",
+          },
+        ]
+      : decision.notificaciones;
+
+    const decisionValidada: DecisionSolicitud = {
+      ...decision,
+      fase: datos.resultado,
+      validacion,
+      notificaciones,
+    };
+
+    const actualizada: Solicitud = {
+      ...actual,
+      estado: datos.resultado === "aprobada" ? "adjudicada" : "desierta",
+      decision: decisionValidada,
+      ultimaModificacion: fecha,
+    };
+    this.filasEditadas.set(id, actualizada);
+
+    /*
+     * La invitación solo existe para los escenarios del portal del proveedor.
+     * Se actualiza cuando está registrada; para las semillas del ordenador no
+     * se inventa una invitación nueva.
+     */
+    const invitacionBase =
+      this.invitacionesActualizadas.get(id) ??
+      INVITACIONES_PROVEEDOR_MOCK.find(
+        (item) => item.solicitudId === id,
+      );
+    if (invitacionBase) {
+      this.invitacionesActualizadas.set(id, {
+        ...invitacionBase,
+        estado: datos.resultado === "aprobada" ? "aceptada" : "rechazada",
+      });
+    }
+
+    return of(
+      comoDetalle(
+        actualizada,
+        this.edicionBase(actualizada),
+        this.historialEdiciones.get(id) ?? [],
+      ),
+    ).pipe(delay(retardo));
+  }
+
+  esUsuarioOrdenadorSesion(usuario: string): boolean {
+    return usuario === ORDENADOR_GASTO_SESION_MOCK.usuario;
   }
 
   registrarSubsanacion(

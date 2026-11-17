@@ -128,84 +128,12 @@
 
       <!-- ────────────────── Respuesta del solicitante ─────────────────── -->
       @if (datos.vista === "respuesta") {
-        @if (decision(); as decision) {
-          <div class="dialogo__bloque">
-            <h3>Estado de la decisión</h3>
-            <p class="dialogo__estado">
-              <span
-                class="chip"
-                [class.chip--exito]="decision.fase === 'aprobada'"
-                [class.chip--error]="decision.fase === 'rechazada'"
-                [class.chip--advertencia]="decision.fase === 'enviada'"
-              >
-                <mat-icon aria-hidden="true">
-                  {{
-                    decision.fase === "aprobada"
-                      ? "verified"
-                      : decision.fase === "rechazada"
-                        ? "cancel"
-                        : "pending_actions"
-                  }}
-                </mat-icon>
-                <span>
-                  {{
-                    decision.fase === "aprobada"
-                      ? "Aprobada por el Ordenador del Gasto"
-                      : decision.fase === "rechazada"
-                        ? "Rechazada por el Ordenador del Gasto"
-                        : "Enviada a validación"
-                  }}
-                </span>
-              </span>
-            </p>
-
-            <h3>Respuesta y recomendaciones</h3>
-            <div
-              class="dialogo__texto"
-              [innerHTML]="justificacion() | htmlSeguro"
-            ></div>
-          </div>
-
-          <div class="datos-grid datos-grid--dos">
-            <par-etiqueta-valor
-              etiqueta="Enviada por"
-              [valor]="decision.envio.autor"
-              [nota]="decision.envio.rol"
-              icono="person"
-            />
-            <par-etiqueta-valor
-              etiqueta="Fecha del envío"
-              [valor]="decision.envio.fecha"
-              icono="event_available"
-            />
-            @if (decision.validacion; as validacion) {
-              <par-etiqueta-valor
-                etiqueta="Validada por"
-                [valor]="validacion.autor"
-                [nota]="validacion.rol"
-                icono="verified_user"
-              />
-              <par-etiqueta-valor
-                etiqueta="Fecha de la validación"
-                [valor]="validacion.fecha"
-                icono="event_available"
-              />
-            }
-            <par-etiqueta-valor
-              etiqueta="Código de verificación"
-              [valor]="decision.codigoVerificacion"
-              icono="fingerprint"
-            />
-            <par-etiqueta-valor
-              etiqueta="Notificación al proveedor"
-              [valor]="
-                decision.envio.notificar
-                  ? 'Programada (simulada)'
-                  : 'No registrada'
-              "
-              icono="mark_email_read"
-            />
-          </div>
+        @if (decision()) {
+          <app-ficha-decision
+            modo="lectura"
+            [solicitud]="datos.solicitud"
+            [decision]="decision()"
+          ></app-ficha-decision>
         } @else {
           <div class="dialogo__vacio" role="status">
             <mat-icon aria-hidden="true">info</mat-icon>

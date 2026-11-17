@@ -38,10 +38,7 @@ import { ConfigurarSubsanacionComponent } from "./pages/subsanacion/configurar-s
 import { HistorialSubsanacionComponent } from "./pages/subsanacion/historial-subsanacion/historial-subsanacion.component";
 import { DetallePresentacionModule } from "./pages/detalle-solicitud/components/detalle-presentacion.module";
 import { PantallaPorDefinirComponent } from "./pages/pantalla-por-definir/pantalla-por-definir.component";
-import {
-  EvaluacionService,
-  EvaluacionServiceMock,
-} from "../services/evaluacion.service";
+import { DecisionModule } from "../components/decision/decision.module";
 import {
   SubsanacionService,
   SubsanacionServiceMock,
@@ -84,14 +81,15 @@ import {
     ForoObservacionesModule,
     DialogoDescartarModule,
     ResumenDiferenciasModule,
+    DecisionModule,
   ],
   providers: [
     // Único punto de enlace de SICAPITAL (cruce del paso 1 del asistente).
     { provide: SicapitalService, useClass: SicapitalServiceMock },
     // El tablero (S-07), el comparador (S-09) y el detalle (S-10) comparten el
     // `OferentesService` registrado en `CotizacionesModule`.
-    // Único punto de enlace del trámite de decisión (S-11).
-    { provide: EvaluacionService, useClass: EvaluacionServiceMock },
+    // Único punto de enlace del trámite de decisión (S-11) y de la validación
+    // final (O-03): `EvaluacionService` se registra en `CotizacionesModule`.
     // Único punto de enlace de la subsanación documental (S-12).
     { provide: SubsanacionService, useClass: SubsanacionServiceMock },
     { provide: MatPaginatorIntl, useFactory: paginadorEnEspanol },

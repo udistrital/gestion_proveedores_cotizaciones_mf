@@ -380,158 +380,41 @@
 
         <!-- ───────────────────── Etapa de envío ─────────────────────────── -->
         @if (vista() === "listo") {
-          <form class="decision__formulario" [formGroup]="formulario" (ngSubmit)="enviar()">
-            @if (resultado() === "rechazada") {
-              <div class="decision__error" role="status">
-                <mat-icon aria-hidden="true">cancel</mat-icon>
-                <p>
-                  La decisión anterior fue rechazada. Puedes enviar otro
-                  proveedor a validación; el proveedor rechazado no puede
-                  reenviarse.
-                </p>
-              </div>
-            }
-            <section class="decision__tarjeta" aria-labelledby="decision-justificacion-titulo">
-              <div class="decision__tarjeta-cabecera">
-                <div class="decision__tarjeta-titulos">
-                  <span class="decision__tarjeta-icono" aria-hidden="true">
-                    <mat-icon>description</mat-icon>
-                  </span>
-                  <div>
-                    <h2 id="decision-justificacion-titulo">
-                      Justificación de la decisión y respuesta al proveedor
-                      <b aria-hidden="true">*</b>
-                    </h2>
-                    <p>
-                      Sustento técnico-económico que verá el Ordenador del Gasto y
-                      el proveedor.
-                    </p>
-                  </div>
-                </div>
-                <span class="chip chip--recto">
-                  Obligatorio · mínimo {{ minimoJustificacion }}
-                </span>
-              </div>
-
-              <div class="decision__aviso decision__aviso--info">
-                <mat-icon aria-hidden="true">warning</mat-icon>
-                <p>
-                  <strong>Solo se permite enviar la decisión una vez.</strong>
-                  Verifica la información detalladamente: no se podrán realizar
-                  cambios después de confirmar y remitir al Ordenador del Gasto
-                  (RN-35).
-                </p>
-              </div>
-
-              <div class="campo decision__campo">
-                <label
-                  id="decision-justificacion-etiqueta"
-                  class="campo__etiqueta"
-                >
-                  Justificación de la decisión y respuesta al proveedor
-                  <b aria-hidden="true">*</b>
-                </label>
-                <editor-enriquecido
-                  formControlName="justificacion"
-                  [idEtiqueta]="'decision-justificacion-etiqueta'"
-                  [idError]="
-                    mostrarErrorJustificacion
-                      ? 'decision-justificacion-error'
-                      : ''
-                  "
-                  [minCaracteres]="minimoJustificacion"
-                  [rows]="6"
-                  pista="Explique el sustento técnico-económico de la selección y la respuesta al proveedor."
-                  [ayuda]="
-                    'Obligatorio · mínimo ' +
-                    minimoJustificacion +
-                    ' caracteres de texto'
-                  "
-                  (blur)="marcarJustificacionTocada()"
-                ></editor-enriquecido>
-                @if (mostrarErrorJustificacion) {
-                  <p
-                    id="decision-justificacion-error"
-                    class="campo__fallo"
-                    role="alert"
-                    aria-live="assertive"
-                  >
-                    La justificación es obligatoria y debe tener al menos
-                    {{ minimoJustificacion }} caracteres.
-                  </p>
-                }
-              </div>
-
-              <mat-checkbox
-                formControlName="notificar"
-                [disabled]="enviando()"
-              >
-                Registrar notificación simulada al proveedor
-              </mat-checkbox>
-              <p class="decision__nota">
-                La notificación se registrará cuando el Ordenador del Gasto
-                registre la decisión final. Por ahora queda programada y marcada
-                como simulada (RF-13).
+          @if (resultado() === "rechazada") {
+            <div class="decision__error" role="status">
+              <mat-icon aria-hidden="true">cancel</mat-icon>
+              <p>
+                La decisión anterior fue rechazada. Puedes enviar otro
+                proveedor a validación; el proveedor rechazado no puede
+                reenviarse.
               </p>
-            </section>
-
-            <div class="decision__acciones">
-              <button
-                class="boton-recto"
-                type="button"
-                [disabled]="enviando()"
-                (click)="volver()"
-              >
-                Cancelar
-              </button>
-              <button
-                mat-flat-button
-                class="boton-primario"
-                type="submit"
-                [disabled]="!puedeEnviar"
-              >
-                <mat-icon aria-hidden="true">send</mat-icon>
-                {{
-                  enviando()
-                    ? "Enviando…"
-                    : "Enviar a validación del Ordenador del Gasto"
-                }}
-              </button>
             </div>
+          }
 
-            @if (ofertaComparada()?.excedePresupuesto) {
-              <div class="decision__error" role="alert">
-                <mat-icon aria-hidden="true">error_outline</mat-icon>
-                <p>
-                  La oferta supera el techo presupuestal del CDP y no puede
-                  enviarse a validación (RN-40).
-                </p>
-              </div>
-            }
+          <app-ficha-decision
+            #ficha
+            modo="envio"
+            [solicitud]="solicitud()"
+            [detalle]="oferta()"
+            [permitido]="puedeEnviarExterno"
+            (actualizada)="alEnviar($event)"
+          ></app-ficha-decision>
 
-            @if (errorEnvio()) {
-              <div class="decision__error" role="alert" aria-live="assertive">
-                <mat-icon aria-hidden="true">error_outline</mat-icon>
-                <p>{{ errorEnvio() }}</p>
-                <button
-                  class="boton-recto"
-                  type="button"
-                  [disabled]="enviando()"
-                  (click)="reintentarEnvio()"
-                >
-                  <mat-icon aria-hidden="true">refresh</mat-icon>
-                  Reintentar
-                </button>
-              </div>
-            }
-
-            @if (enviando()) {
-              <p class="decision__enviando" role="status" aria-live="polite">
-                <mat-spinner diameter="18" aria-hidden="true"></mat-spinner>
-                Registrando el envío a validación…
-              </p>
-            }
-          </form>
+          <div class="decision__acciones">
+            <button class="boton-recto" type="button" (click)="volver()">
+              Cancelar
+            </button>
+            <button
+              mat-flat-button
+              class="boton-primario"
+              type="button"
+              [disabled]="!puedeConfirmar"
+              (click)="confirmarEnvio()"
+            >
+              <mat-icon aria-hidden="true">send</mat-icon>
+              Enviar a validación del Ordenador del Gasto
+            </button>
+          </div>
         }
 
         <!-- ─────────────── Resultado: enviada a validación ───────────────── -->

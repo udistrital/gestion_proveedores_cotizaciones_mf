@@ -3,12 +3,13 @@ import { RouterModule, Routes } from "@angular/router";
 import { BandejaValidacionComponent } from "./pages/bandeja-validacion/bandeja-validacion.component";
 import { PantallaOrdenadorPlaceholderComponent } from "./pages/pantalla-proximamente/pantalla-ordenador-placeholder.component";
 import { ResultadoValidacionComponent } from "./pages/resultado-validacion/resultado-validacion.component";
+import { ValidarCotizacionComponent } from "./pages/validar-cotizacion/validar-cotizacion.component";
 import { resultadoValidacionResolver } from "./resolvers/resultado-validacion.resolver";
 
 /**
  * Rutas del área del Ordenador del Gasto (O-01 a O-04).
  *
- * El módulo se monta en `cotizaciones/validacion` (RN-32). Los literales van
+ * El módulo se monta en `cotizaciones/bandeja-validacion` (RN-32). Los literales van
  * antes de `:id` para que la bandeja de modificaciones no sea capturada por
  * una ruta de detalle.
  */
@@ -44,12 +45,8 @@ const routes: Routes = [
   },
   {
     path: ":id/validar",
-    component: PantallaOrdenadorPlaceholderComponent,
+    component: ValidarCotizacionComponent,
     title: "ÁGORA · Validar cotización vinculada",
-    data: {
-      titulo: "Validar cotización vinculada",
-      pantalla: "O-03",
-    },
   },
 ];
 

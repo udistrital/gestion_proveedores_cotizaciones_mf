@@ -12,6 +12,10 @@ import {
   SolicitudesService,
   SolicitudesServiceMock,
 } from "./services/solicitudes.service";
+import {
+  EvaluacionService,
+  EvaluacionServiceMock,
+} from "./services/evaluacion.service";
 import { EntradaCotizacionesComponent } from "./pages/entrada-cotizaciones/entrada-cotizaciones.component";
 import {
   RespuestaProveedorService,
@@ -27,6 +31,9 @@ import {
   imports: [CotizacionesRoutingModule],
   providers: [
     { provide: SolicitudesService, useClass: SolicitudesServiceMock },
+    // Único punto de enlace del trámite de decisión (S-11) y de la validación
+    // final (O-03).
+    { provide: EvaluacionService, useClass: EvaluacionServiceMock },
     { provide: ObservacionesService, useClass: ObservacionesServiceMock },
     {
       provide: RespuestaProveedorService,

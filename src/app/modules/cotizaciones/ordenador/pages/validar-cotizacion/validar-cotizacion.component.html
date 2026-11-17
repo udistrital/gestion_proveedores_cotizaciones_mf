@@ -1,0 +1,512 @@
+<plantilla-pagina-contenedora 
+  [breadcrumb]="breadcrumb"
+  title="Validación de cotización vinculada"
+  [mostrarBotonRegresar]="true"
+  (regresar)="volver()"
+>
+  <section class="validar" aria-labelledby="titulo-validar">
+    <p class="validar__anuncio" aria-live="polite">{{ anuncio() }}</p>
+
+    <!-- ─────────────────────────── Carga y errores ─────────────────────── -->
+    @if (vista() === "cargando") {
+      <div class="validar__esqueleto" aria-busy="true" aria-live="polite">
+        <span class="visually-oculto">Cargando la validación…</span>
+        <div class="esqueleto esqueleto--cabecera"></div>
+        <div class="esqueleto esqueleto--franja"></div>
+        @for (bloque of [1, 2, 3]; track bloque) {
+          <div class="esqueleto esqueleto--tarjeta"></div>
+        }
+      </div>
+    } @else if (vista() === "error") {
+      <section class="validar__estado validar__estado--error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <h2>No pudimos cargar la validación</h2>
+        <p>
+          {{
+            mensajeError() ||
+              "Ocurrió un problema al consultar el expediente. Intente nuevamente."
+          }}
+        </p>
+        <div class="validar__estado-acciones">
+          <button class="boton-recto boton-recto--vino" type="button" (click)="reintentar()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            <span>Reintentar</span>
+          </button>
+          <button class="boton-recto" type="button" (click)="volver()">
+            <mat-icon aria-hidden="true">arrow_back</mat-icon>
+            <span>Volver a pendientes</span>
+          </button>
+        </div>
+      </section>
+    } @else if (vista() === "no-encontrada") {
+      <section class="validar__estado" role="status">
+        <mat-icon aria-hidden="true">search_off</mat-icon>
+        <h2>Solicitud no encontrada</h2>
+        <p>
+          No existe una solicitud con ese identificador o ya no está disponible
+          para la validación del ordenador del gasto.
+        </p>
+        <button class="boton-recto" type="button" (click)="volver()">
+          <mat-icon aria-hidden="true">arrow_back</mat-icon>
+          <span>Volver a pendientes de validación</span>
+        </button>
+      </section>
+    } @else if (vista() === "sin-acceso") {
+      <section class="validar__estado" role="status">
+        <mat-icon aria-hidden="true">lock</mat-icon>
+        <h2>Sin acceso a esta validación</h2>
+        <p>
+          La validación de cotizaciones vinculadas es competencia exclusiva del
+          ordenador del gasto y solo se consulta desde el despacho asignado
+          (RN-32).
+        </p>
+        <button class="boton-recto" type="button" (click)="volver()">
+          <mat-icon aria-hidden="true">arrow_back</mat-icon>
+          <span>Volver a pendientes de validación</span>
+        </button>
+      </section>
+    } @else if (solicitud(); as s) {
+      <!-- ─────────────────────────── Cabecera ─────────────────────────── -->
+      <header class="validar__cabecera">
+        <div class="validar__cabecera-principal">
+          <div class="validar__textos">
+            <div class="validar__chips">
+              <h1 id="titulo-validar" class="validar__titulo">
+                Validar cotización vinculada
+              </h1>
+              <chip-estado [estado]="s.estado"></chip-estado>
+              @if (estadoChipValidacion(); as estadoChip) {
+                <chip-estado [estado]="estadoChip"></chip-estado>
+              }
+              <span class="chip chip--recto">
+                <span class="validar__chip-etiqueta">N.°</span>
+                <span>{{ s.id }}</span>
+              </span>
+            </div>
+
+            <p class="validar__descripcion">
+              Examine la selección elevada por el Jefe de Dependencia y emita el
+              pronunciamiento de aprobación o rechazo que habilita o extingue el
+              proceso de contratación formal.
+            </p>
+
+            <div class="validar__meta">
+              <span class="validar__dato">
+                <mat-icon aria-hidden="true">domain</mat-icon>
+                <span>{{ s.general.responsable.dependenciaSolicitante }}</span>
+              </span>
+              <span class="validar__dato">
+                <mat-icon aria-hidden="true">event_busy</mat-icon>
+                <span>
+                  Cierre:
+                  <strong>{{ s.cierre ?? "Por definir" }}</strong>
+                </span>
+              </span>
+              @if (decision(); as d) {
+                <span class="validar__dato">
+                  <mat-icon aria-hidden="true">tag</mat-icon>
+                  <span>
+                    Código de verificación:
+                    <strong>{{ d.codigoVerificacion }}</strong>
+                  </span>
+                </span>
+              }
+            </div>
+          </div>
+
+          <div class="validar__acciones-cabecera">
+            <button class="boton-recto" type="button" (click)="volver()">
+              <mat-icon aria-hidden="true">arrow_back</mat-icon>
+              <span>Volver a pendientes</span>
+            </button>
+            <button class="boton-recto" type="button" (click)="descargarExpediente()">
+              <mat-icon aria-hidden="true">folder_zip</mat-icon>
+              <span>Expediente (ZIP)</span>
+            </button>
+          </div>
+        </div>
+
+        <linea-estados
+          [pasos]="pasos()"
+          label="Etapa del proceso de validación"
+        ></linea-estados>
+      </header>
+
+      <!-- ─────────────────────────── Estados ──────────────────────────── -->
+      @if (vista() === "bloqueado") {
+        <section class="validar__bloqueo" role="status">
+          <span class="validar__bloqueo-icono" aria-hidden="true">
+            <mat-icon>lock_clock</mat-icon>
+          </span>
+          <div>
+            <h2>Validación no disponible antes del cierre (RN-29)</h2>
+            <p>
+              El periodo de cotización de esta solicitud termina el
+              <strong>{{ s.cierre ?? "por definir" }}</strong>. La validación se
+              habilita automáticamente cuando el plazo haya terminado.
+            </p>
+          </div>
+        </section>
+      } @else if (vista() === "no-disponible") {
+        <section class="validar__estado" role="status">
+          <mat-icon aria-hidden="true">block</mat-icon>
+          <h2>La solicitud no admite validación en este estado</h2>
+          <p>
+            Solo se validan cotizaciones con una decisión del solicitante
+            registrada. El expediente figura como
+            <strong>{{ s.estado }}</strong>.
+          </p>
+          <button class="boton-recto" type="button" (click)="verExpediente()">
+            <mat-icon aria-hidden="true">visibility</mat-icon>
+            <span>Consultar el expediente</span>
+          </button>
+        </section>
+      } @else if (vista() === "sin-decision") {
+        <section class="validar__aviso validar__aviso--advertencia" role="status">
+          <mat-icon aria-hidden="true">hourglass_top</mat-icon>
+          <div>
+            <h2>Proceso bloqueado · decisión del solicitante pendiente</h2>
+            <p>
+              El Jefe de Dependencia aún no ha formalizado la selección de un
+              oferente. El formulario decisorio permanece deshabilitado hasta
+              que se registre la decisión y la justificación técnica.
+            </p>
+          </div>
+        </section>
+      } @else if (vista() === "sin-proveedor") {
+        <section class="validar__estado" role="status">
+          <mat-icon aria-hidden="true">request_quote</mat-icon>
+          <h2>No hay un proveedor seleccionado con oferta consultable</h2>
+          <p>
+            La decisión del solicitante no tiene una oferta vigente asociada.
+            Verifique el expediente o solicite al solicitante que registre
+            nuevamente la selección.
+          </p>
+          <button class="boton-recto" type="button" (click)="verExpediente()">
+            <mat-icon aria-hidden="true">visibility</mat-icon>
+            <span>Consultar el expediente</span>
+          </button>
+        </section>
+      } @else {
+        <!-- ───────────────────── Banners del expediente ───────────────── -->
+        @if (mismoUsuario()) {
+          <section class="validar__aviso validar__aviso--advertencia" role="status">
+            <mat-icon aria-hidden="true">warning</mat-icon>
+            <div class="validar__aviso-textos">
+              <h2>Aviso de segregación funcional</h2>
+              <p>
+                Usted también figura como el usuario que radicó la selección
+                inicial como Jefe de Dependencia solicitante.
+              </p>
+              <etiqueta-por-definir
+                texto="Por definir"
+                detalle="La regla de segregación de funciones entre solicitante y ordenador del gasto aún no está cerrada."
+              ></etiqueta-por-definir>
+            </div>
+          </section>
+        }
+
+        @if (vista() === "decidida") {
+          <section
+            class="validar__aviso"
+            [class.validar__aviso--exito]="resultado() === 'aprobada'"
+            [class.validar__aviso--error]="resultado() === 'rechazada'"
+            aria-labelledby="titulo-dictamen"
+          >
+            <mat-icon aria-hidden="true">
+              {{ resultado() === "aprobada" ? "verified" : "cancel" }}
+            </mat-icon>
+            <div class="validar__aviso-textos">
+              <h2 id="titulo-dictamen">
+                {{
+                  resultado() === "aprobada"
+                    ? "Cotización validada y aprobada por el Ordenador del Gasto"
+                    : "Cotización objetada y rechazada por el Ordenador del Gasto"
+                }}
+              </h2>
+              <p>
+                {{
+                  resultado() === "aprobada"
+                    ? "La oferta seleccionada quedó aprobada y el expediente avanza hacia la suscripción del contrato u orden de compra."
+                    : "La convocatoria quedó desierta; el proceso pasa a la resolución formal de gasto."
+                }}
+                Esta vista es de solo lectura: la respuesta es única y no admite
+                cambios.
+              </p>
+              <div class="validar__dictamen-datos">
+                <button class="boton-recto" type="button" (click)="verResultado()">
+                  <mat-icon aria-hidden="true">fact_check</mat-icon>
+                  <span>Ver resultado</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        } @else {
+          <section class="validar__aviso validar__aviso--info" role="status">
+            <mat-icon aria-hidden="true">pending_actions</mat-icon>
+            <div>
+              <h2>Pendiente de validación del Ordenador del Gasto</h2>
+              <p>
+                El solicitante remitió su recomendación
+                @if (decision(); as d) {
+                  <strong>el {{ d.envio.fecha }}</strong>
+                }
+                y el expediente espera el veredicto definitivo. Revise el
+                comparativo y la oferta del proveedor seleccionado antes de
+                validar: la respuesta es única y no admite cambios.
+              </p>
+            </div>
+          </section>
+        }
+
+        <!-- ──────────────── 1. Datos de la solicitud ─────────────────── -->
+        <tarjeta-seccion
+          icono="folder_open"
+          titulo="Datos de la solicitud de cotización"
+          subtitulo="Información contractual consolidada del expediente, en modo lectura."
+        >
+          <ng-container acciones>
+            <span class="chip chip--recto">Radicado: {{ s.id }}</span>
+          </ng-container>
+
+          <div class="validar__objeto-cita">
+            <span class="validar__rotulo">Título / objeto de la cotización</span>
+            <div
+              class="validar__objeto-texto"
+              [innerHTML]="s.general.caracteristicas.objetivo | htmlSeguro"
+            ></div>
+          </div>
+
+          <div class="datos-grid datos-grid--dos">
+            <par-etiqueta-valor etiqueta="Número de cotización" [valor]="s.id" icono="tag" />
+            <par-etiqueta-valor etiqueta="Vigencia fiscal" [valor]="s.vigencia.toString()" icono="calendar_month" />
+            <par-etiqueta-valor etiqueta="Unidad ejecutora" [valor]="etiquetaUnidad(s.unidadEjecutora)" icono="domain" />
+            <par-etiqueta-valor etiqueta="Dependencia solicitante" [valor]="s.general.responsable.dependenciaSolicitante" icono="apartment" />
+            <par-etiqueta-valor etiqueta="Fecha de apertura" [valor]="s.apertura ?? 'Por definir'" icono="event" />
+            <par-etiqueta-valor etiqueta="Fecha de cierre" [valor]="s.cierre ?? 'Por definir'" icono="event_busy" />
+            <par-etiqueta-valor etiqueta="Responsable técnico" [valor]="responsable(s)" icono="person" />
+            <par-etiqueta-valor etiqueta="Ordenador del gasto relacionado" [valor]="s.general.responsable.ordenadorGasto" [nota]="s.general.responsable.ordenadorCargo" icono="account_balance" />
+            <par-etiqueta-valor etiqueta="Tipología contractual" [valor]="etiquetaTipo" icono="category" />
+            <par-etiqueta-valor etiqueta="Presupuesto oficial (techo)" [valor]="presupuesto(s)" [nota]="'CDP ' + numeroCdp(s)" icono="payments" />
+          </div>
+        </tarjeta-seccion>
+
+        <!-- ──────────── 2. Proveedor seleccionado por el JD ──────────── -->
+        <tarjeta-seccion
+          icono="store"
+          titulo="Proveedor seleccionado por el solicitante"
+          subtitulo="Oferta técnica y económica sujeta a la verificación legal del despacho."
+        >
+          <ng-container acciones>
+            <span class="chip chip--advertencia">
+              <mat-icon aria-hidden="true">recommend</mat-icon>
+              <span>Recomendado para adjudicación</span>
+            </span>
+          </ng-container>
+
+          @if (detalle(); as d) {
+            <div class="validar__proveedor">
+              <div class="validar__proveedor-identidad">
+                <div class="validar__proveedor-chips">
+                  <span
+                    class="chip"
+                    [class.chip--exito]="!excedePresupuesto"
+                    [class.chip--error]="excedePresupuesto"
+                  >
+                    <mat-icon aria-hidden="true">
+                      {{ excedePresupuesto ? "warning" : "check_circle" }}
+                    </mat-icon>
+                    <span>
+                      {{
+                        excedePresupuesto
+                          ? "Oferta fuera del presupuesto"
+                          : "Oferta válida"
+                      }}
+                    </span>
+                  </span>
+                  <span class="chip chip--neutro">{{ identidad()?.etiquetaTipoPersona }}</span>
+                  <span class="chip chip--neutro">
+                    {{ resumenDocumentos().cargados }}/{{ resumenDocumentos().total }} documentos
+                  </span>
+                </div>
+                <h3 class="validar__proveedor-nombre">
+                  {{ d.oferente.proveedor.nombre }}
+                </h3>
+                <p class="validar__proveedor-meta">
+                  <span><strong>NIT:</strong> {{ d.oferente.proveedor.nit }}</span>
+                  <span>•</span>
+                  <span><strong>Ubicación:</strong> {{ identidad()?.ubicacion }}</span>
+                  <span>•</span>
+                  <span><strong>Vigencia oferta:</strong> {{ d.oferta ? d.oferta.oferta.validezDias : "—" }} días</span>
+                </p>
+              </div>
+
+              @if (d.oferta; as oferta) {
+                <div class="validar__proveedor-valor">
+                  <span class="validar__rotulo">Precio definitivo ofertado (con IVA)</span>
+                  <span class="validar__valor">{{ moneda(oferta.total) }} <small>COP</small></span>
+                  @if (!oferta.excedePresupuesto) {
+                    <span class="validar__ahorro">
+                      <mat-icon aria-hidden="true">trending_down</mat-icon>
+                      Ahorro del {{ porcentajeAhorro(ahorroPorcentaje) }}% frente al techo del CDP
+                    </span>
+                  } @else {
+                    <span class="validar__excede">
+                      <mat-icon aria-hidden="true">warning</mat-icon>
+                      Supera el techo del CDP
+                    </span>
+                  }
+                </div>
+              }
+            </div>
+
+            @if (excedePresupuesto) {
+              <div class="validar__aviso validar__aviso--error" role="alert">
+                <mat-icon aria-hidden="true">warning</mat-icon>
+                <div>
+                  <h2>Oferta por encima del presupuesto (RN-40)</h2>
+                  <p>
+                    El total de la oferta supera el techo del CDP
+                    ({{ presupuesto(s) }}). Las cotizaciones con valores
+                    superiores no se tienen en cuenta para la aprobación.
+                  </p>
+                </div>
+              </div>
+            }
+
+            <div class="validar__proveedor-acciones">
+              <button class="boton-recto" type="button" (click)="abrirDetalle('cotizacion')">
+                <mat-icon aria-hidden="true">request_quote</mat-icon>
+                <span>Ver cotización económica</span>
+              </button>
+              <button class="boton-recto" type="button" (click)="abrirDetalle('persona')">
+                <mat-icon aria-hidden="true">badge</mat-icon>
+                <span>Detalle de la persona</span>
+              </button>
+              <button class="boton-recto" type="button" (click)="abrirComparador()">
+                <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+                <span>Ver comparativo</span>
+              </button>
+            </div>
+          } @else {
+            <div class="validar__vacio" role="status">
+              <mat-icon aria-hidden="true">request_quote</mat-icon>
+              <p>No hay una oferta seleccionada para mostrar.</p>
+            </div>
+          }
+        </tarjeta-seccion>
+
+        <!-- ─────────────── 3. Justificación del solicitante ──────────── -->
+        <tarjeta-seccion
+          icono="description"
+          titulo="Justificación y respuesta al proveedor"
+          subtitulo="Dictamen motivado suscrito por el Jefe de Dependencia."
+        >
+          <ng-container acciones>
+            @if (decision(); as d) {
+              <span class="chip chip--neutro">
+                <mat-icon aria-hidden="true">verified</mat-icon>
+                <span>Código {{ d.codigoVerificacion }}</span>
+              </span>
+            }
+          </ng-container>
+
+          @if (decision(); as d) {
+            <div class="validar__bloque-lectura">
+              <span class="validar__rotulo">Texto de la justificación técnica de selección</span>
+              <div [innerHTML]="d.envio.justificacionHtml | htmlSeguro"></div>
+            </div>
+
+            <div class="datos-grid datos-grid--dos">
+              <par-etiqueta-valor etiqueta="Autor" [valor]="d.envio.autor" [nota]="d.envio.rol" icono="person" />
+              <par-etiqueta-valor etiqueta="Fecha de radicación" [valor]="d.envio.fecha" icono="event_available" />
+            </div>
+          } @else {
+            <div class="validar__vacio" role="status">
+              <mat-icon aria-hidden="true">description</mat-icon>
+              <p>El expediente no registra una justificación del solicitante.</p>
+            </div>
+          }
+        </tarjeta-seccion>
+
+        <!-- ────────────── 4. Decisión del Ordenador del Gasto ─────────── -->
+        <section class="validar__decision" aria-label="Decisión del Ordenador del Gasto">
+          @if (vista() === "decidida") {
+            <app-ficha-decision
+              modo="lectura"
+              [solicitud]="s"
+              [decision]="decision()"
+            ></app-ficha-decision>
+          } @else {
+            <app-ficha-decision
+              #ficha
+              modo="validacion"
+              [solicitud]="s"
+              [detalle]="detalle()"
+              [permitido]="true"
+              (actualizada)="alValidar($event)"
+            ></app-ficha-decision>
+          }
+        </section>
+
+        <!-- ───────────────────────── Dock ─────────────────────────────── -->
+        <footer class="validar__dock" aria-label="Acciones de validación">
+          <div class="validar__dock-textos">
+            <span class="validar__dock-titulo">
+              <mat-icon aria-hidden="true">gavel</mat-icon>
+              <span>Veredicto Ordenador del Gasto</span>
+            </span>
+            <span class="validar__dock-nota">
+              Etapa 6 de 7 ·
+              {{
+                vista() === "decidida"
+                  ? "Validación registrada en modo lectura"
+                  : "Competencia exclusiva del despacho del ordenador"
+              }}
+            </span>
+
+            @if (vista() !== "decidida") {
+              <span
+                class="validar__dock-resumen"
+                [class.validar__dock-resumen--exito]="resumenDecision.tono === 'exito'"
+                [class.validar__dock-resumen--error]="resumenDecision.tono === 'error'"
+                aria-live="polite"
+              >
+                <mat-icon aria-hidden="true">
+                  {{ resumenDecision.tono === "error" ? "error_outline" : "info" }}
+                </mat-icon>
+                <span>{{ resumenDecision.texto }}</span>
+              </span>
+            }
+          </div>
+
+          <div class="validar__dock-acciones">
+            @if (vista() === "decidida") {
+              <button class="boton-recto" type="button" (click)="verResultado()">
+                <mat-icon aria-hidden="true">fact_check</mat-icon>
+                <span>Ver resultado</span>
+              </button>
+              <button class="boton-recto boton-recto--vino" type="button" (click)="volver()">
+                <mat-icon aria-hidden="true">arrow_back</mat-icon>
+                <span>Volver a pendientes</span>
+              </button>
+            } @else {
+              <button class="boton-recto" type="button" (click)="volver()">
+                Cancelar
+              </button>
+              <button
+                class="boton-recto boton-recto--vino"
+                type="button"
+                [disabled]="!puedeConfirmar"
+                (click)="confirmar()"
+              >
+                <mat-icon aria-hidden="true">save</mat-icon>
+                <span>Guardar decisión</span>
+              </button>
+            }
+          </div>
+        </footer>
+      }
+    }
+  </section>
+</plantilla-pagina-contenedora>

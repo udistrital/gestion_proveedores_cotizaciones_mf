@@ -31,7 +31,7 @@ const routes: Routes = [
       ),
   },
   /*
-   * Área exclusiva del Ordenador del Gasto (RN-32).
+   * Área exclusiva del Ordenador del Gasto.
    */
   {
     path: "bandeja-validacion",
