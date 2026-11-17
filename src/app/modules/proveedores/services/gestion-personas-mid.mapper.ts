@@ -16,8 +16,6 @@ import {
 } from "./gestion-personas-mid.models";
 import { textoPlanoDesdeHtml } from "src/app/shared/utils/texto-plano";
 
-const LIMITE_MATRICULA_MERCANTIL = "999999999999999";
-
 function registro(
   valor: unknown,
   nombre: string,
@@ -112,31 +110,6 @@ function enteroNumericoOpcional(
     || valor < minimo
   ) {
     throw new Error(`El campo ${campo} debe ser un número entero válido.`);
-  }
-  return valor;
-}
-
-export function esMatriculaMercantilValida(valor: unknown): valor is string {
-  if (typeof valor !== "string" || !/^\d+$/.test(valor)) {
-    return false;
-  }
-
-  const valorSignificativo = valor.replace(/^0+/, "") || "0";
-  if (valorSignificativo === "0") {
-    return false;
-  }
-  if (valorSignificativo.length > LIMITE_MATRICULA_MERCANTIL.length) {
-    return false;
-  }
-  return valorSignificativo.length < LIMITE_MATRICULA_MERCANTIL.length
-    || valorSignificativo <= LIMITE_MATRICULA_MERCANTIL;
-}
-
-function matriculaMercantilValidada(valor: unknown): string {
-  if (!esMatriculaMercantilValida(valor)) {
-    throw new Error(
-      "MatriculaMercantil debe ser una cadena positiva de dígitos no superior a 999999999999999.",
-    );
   }
   return valor;
 }
@@ -244,6 +217,66 @@ function agregarEntero(
   }
 }
 
+function agregarBooleano(
+  destino: Record<string, unknown>,
+  datos: Record<string, unknown>,
+  campoOrigen: string,
+  campoDestino: string,
+): void {
+  const valor = booleanoOpcional(datos, campoOrigen);
+  if (valor !== undefined) {
+    destino[campoDestino] = valor;
+  }
+}
+
+function idsActividadEconomica(valor: unknown): number[] {
+  if (valor === undefined || valor === null) {
+    return [];
+  }
+  if (!Array.isArray(valor)) {
+    throw new Error(
+      "La relación ActividadEconomicaProveedor no tiene el formato documentado.",
+    );
+  }
+  return valor.map((elemento, indice) => {
+    const actividad = registro(elemento, `ActividadEconomicaProveedor[${indice}]`);
+    const id = enteroNumericoOpcional(
+      actividad["ActividadEconomicaId"],
+      "ActividadEconomicaId",
+      1,
+    );
+    if (id === undefined) {
+      throw new Error(
+        "Una actividad económica consultada no contiene ActividadEconomicaId.",
+      );
+    }
+    return id;
+  });
+}
+
+function actividadesNuevas(
+  idsFormulario: unknown,
+  datosConsultados: ProveedorMidMaterializado,
+): Array<{ ActividadEconomicaId: number }> {
+  if (idsFormulario === undefined || idsFormulario === null) {
+    return [];
+  }
+  if (!Array.isArray(idsFormulario)) {
+    throw new Error("Las actividades económicas deben ser una lista de IDs.");
+  }
+  const idsExistentes = new Set(
+    idsActividadEconomica(datosConsultados["ActividadEconomicaProveedor"]),
+  );
+  const nuevos = new Set<number>();
+  for (const [indice, valor] of idsFormulario.entries()) {
+    const id = entero(valor, `ActividadEconomicaId[${indice}]`, 1);
+    if (!idsExistentes.has(id)) {
+      nuevos.add(id);
+    }
+  }
+  return [...nuevos].map((ActividadEconomicaId) => ({ ActividadEconomicaId }));
+}
+
 export function mapearConsultaPersonaNaturalMid(
   datos: ProveedorMidMaterializado,
 ): Record<string, unknown> {
@@ -253,6 +286,7 @@ export function mapearConsultaPersonaNaturalMid(
   const experiencia: Record<string, unknown> = {};
   const afiliacionesFinanzas: Record<string, unknown> = {};
   const actividadDeclaracion: Record<string, unknown> = {};
+  const tributario: Record<string, unknown> = {};
   const documento = primeraRelacion(tercero, "DatosIdentificacion");
 
   agregarTexto(identificacion, tercero, "PrimerNombre", "primerNombre");
@@ -286,8 +320,8 @@ export function mapearConsultaPersonaNaturalMid(
       "fechaExpedicion",
     );
     const digitoVerificacion = enteroNumericoOpcional(
-      documento["DigitoVerificacion"],
-      "DigitoVerificacion",
+      documento["DigitoVerficacion"],
+      "DigitoVerficacion",
       0,
     );
     if (digitoVerificacion !== undefined) {
@@ -295,17 +329,24 @@ export function mapearConsultaPersonaNaturalMid(
     }
   }
 
+  agregarEntero(
+    identificacion,
+    detalle,
+    "PaisNacimientoId",
+    "paisNacimiento",
+    1,
+  );
   const experienciaLaboral = enteroNumericoOpcional(
-    detalle["ExperienciaLaboralMeses"],
-    "ExperienciaLaboralMeses",
+    detalle["ExperienciaLaboral"],
+    "ExperienciaLaboral",
     0,
   );
   if (experienciaLaboral !== undefined) {
     experiencia["experienciaLaboralTotal"] = experienciaLaboral;
   }
   const experienciaProfesional = enteroNumericoOpcional(
-    detalle["ExperienciaProfesionalMeses"],
-    "ExperienciaProfesionalMeses",
+    detalle["ExperienciaProfesional"],
+    "ExperienciaProfesional",
     0,
   );
   if (experienciaProfesional !== undefined) {
@@ -333,17 +374,41 @@ export function mapearConsultaPersonaNaturalMid(
       "NumeroCuenta",
       "numeroCuentaBancaria",
     );
+    agregarEntero(
+      afiliacionesFinanzas,
+      cuenta,
+      "MontoCapitalAutorizado",
+      "capitalAutorizadoPatrimonio",
+      0,
+    );
   }
+  agregarBooleano(tributario, detalle, "MedicinaPrepagada", "medicinaPrepagada");
+  agregarBooleano(tributario, detalle, "ResponsableIva", "responsableIva");
+  agregarBooleano(tributario, detalle, "ResideColombia", "resideFiscalmenteColombia");
+  agregarBooleano(tributario, detalle, "PensionVoluntaria", "aportesPensionVoluntaria");
+  agregarBooleano(
+    afiliacionesFinanzas,
+    detalle,
+    "Pensionado",
+    "pensionadoAsignacionRetiro",
+  );
   agregarTexto(
     actividadDeclaracion,
     datos,
     "DescripcionPortafolio",
     "portafolioCapacidadEntrega",
   );
+  const actividades = idsActividadEconomica(
+    datos["ActividadEconomicaProveedor"],
+  );
+  if (actividades.length > 0) {
+    actividadDeclaracion["actividadesCiiu"] = actividades;
+  }
 
   return {
     identificacion,
     experiencia,
+    tributario,
     afiliacionesFinanzas,
     actividadDeclaracion,
   };
@@ -362,15 +427,33 @@ export function mapearConsultaPersonaJuridicaMid(
   if (documento) {
     agregarTexto(formulario, documento, "Numero", "nit");
     const digitoVerificacion = enteroNumericoOpcional(
-      documento["DigitoVerificacion"],
-      "DigitoVerificacion",
+      documento["DigitoVerficacion"],
+      "DigitoVerficacion",
       0,
     );
     if (digitoVerificacion !== undefined) {
       formulario["digitoVerificacion"] = String(digitoVerificacion);
     }
   }
-  agregarTexto(formulario, detalle, "NombreComercial", "nombreComercial");
+  agregarEntero(formulario, detalle, "ProcedenciaEmpresaId", "procedencia", 1);
+  agregarEntero(
+    formulario,
+    detalle,
+    "RegimenContributivo",
+    "regimenContributivo",
+    1,
+  );
+  for (const [campoMid, campoFormulario] of [
+    ["ExclusividadProducto", "exclusividadImportacion"],
+    ["Pyme", "clasificacionPyme"],
+    ["RegistroMercantil", "registroMercantilActivo"],
+    ["SujetoRetencion", "sujetoRetencion"],
+    ["AgenteRetenedor", "agenteRetenedor"],
+    ["ResponsableIca", "responsableIca"],
+    ["ResponsableIva", "responsableIva"],
+  ] as const) {
+    agregarBooleano(formulario, detalle, campoMid, campoFormulario);
+  }
   agregarTexto(
     formulario,
     datos,
@@ -381,45 +464,20 @@ export function mapearConsultaPersonaJuridicaMid(
     agregarEntero(formulario, cuenta, "EntidadBancariaId", "banco", 1);
     agregarEntero(formulario, cuenta, "TipoCuentaId", "tipoCuenta", 1);
     agregarTexto(formulario, cuenta, "NumeroCuenta", "numeroCuenta");
-    agregarTexto(formulario, cuenta, "NombreTitular", "titularCuenta");
+    agregarEntero(
+      formulario,
+      cuenta,
+      "MontoCapitalAutorizado",
+      "capitalAutorizado",
+      0,
+    );
   }
 
-  const matricula = detalle["MatriculaMercantil"];
-  if (matricula !== undefined && matricula !== null) {
-    if (typeof matricula === "string" && esMatriculaMercantilValida(matricula)) {
-      formulario["matriculaMercantil"] = matricula;
-    } else if (
-      typeof matricula === "number"
-      && Number.isSafeInteger(matricula)
-      && matricula > 0
-    ) {
-      formulario["matriculaMercantil"] = String(matricula);
-    } else {
-      throw new Error(
-        "La consulta devolvió una MatriculaMercantil que no se puede representar con seguridad en el formulario.",
-      );
-    }
-  }
-
-  for (const [campoMid, campoFormulario] of [
-    ["FechaConstitucion", "fechaConstitucion"],
-    ["FechaRenovacion", "fechaRenovacion"],
-  ] as const) {
-    const fecha = fechaOpcional(detalle, campoMid);
-    if (fecha !== undefined) {
-      formulario[campoFormulario] = fecha;
-    }
-  }
-
-  for (const [campoMid, campoFormulario] of [
-    ["ReportaBeneficiosFinales", "beneficiariosFinales"],
-    ["CotizaBolsa", "cotizaBolsa"],
-    ["RequiereRevisorFiscal", "revisorFiscal"],
-  ] as const) {
-    const valor = booleanoOpcional(detalle, campoMid);
-    if (valor !== undefined) {
-      formulario[campoFormulario] = valor;
-    }
+  const actividades = idsActividadEconomica(
+    datos["ActividadEconomicaProveedor"],
+  );
+  if (actividades.length > 0) {
+    formulario["actividadesCiiu"] = actividades;
   }
 
   return formulario;
@@ -431,13 +489,13 @@ function baseActualizacion(
 ): {
   Id: number;
   TerceroId: number;
-  TipoRegistroId: number;
+  TipoProveedor: number;
   TerceroIdMaterializado: number;
   DetalleId: number;
 } {
   const proveedorId = idMaterializado(datos, "Id", "Proveedor");
   const terceroId = idMaterializado(datos, "TerceroId", "Proveedor");
-  const tipoRegistroId = idMaterializado(datos, "TipoRegistroId", "Proveedor");
+  const tipoProveedor = idMaterializado(datos, "TipoProveedor", "Proveedor");
   const tercero = registro(datos["Tercero"], "Tercero");
   const terceroIdMaterializado = idMaterializado(tercero, "Id", "Tercero");
   const detalle = esModalidad(datos, rama);
@@ -452,7 +510,7 @@ function baseActualizacion(
   return {
     Id: proveedorId,
     TerceroId: terceroId,
-    TipoRegistroId: tipoRegistroId,
+    TipoProveedor: tipoProveedor,
     TerceroIdMaterializado: terceroIdMaterializado,
     DetalleId: detalleId,
   };
@@ -472,6 +530,7 @@ export function mapearActualizacionPersonaNaturalMid(
     formulario["afiliacionesFinanzas"],
     "información bancaria",
   );
+  const tributario = registro(formulario["tributario"], "información tributaria");
   const actividad = registro(
     formulario["actividadDeclaracion"],
     "actividad",
@@ -484,8 +543,10 @@ export function mapearActualizacionPersonaNaturalMid(
     Id: base.DetalleId,
   };
   const omisiones = [
-    "DatosIdentificacion y Contacto se omiten en PATCH; no se modifican claves documentales inmutables ni se envían contactos sin valores contractuales confirmados.",
+    "DatosIdentificacion y Contacto no se modifican en PATCH para evitar duplicar identificaciones o crear contactos sin TipoCanalContactoId.",
     "La vista representa una cuenta bancaria; las cuentas adicionales consultadas no se modifican ni eliminan.",
+    "Las actividades económicas quitadas del formulario no se borran porque el contrato no ofrece una operación de eliminación.",
+    "La actividad económica principal no se distingue: el contrato solo permite registrar los IDs de las actividades.",
     "Los campos omitidos no se borran; el contrato no define el uso de null para limpiar valores.",
   ];
   let camposActualizados = 0;
@@ -509,14 +570,44 @@ export function mapearActualizacionPersonaNaturalMid(
   }
 
   for (const [campoFormulario, campoMid] of [
-    ["experienciaLaboralTotal", "ExperienciaLaboralMeses"],
-    ["experienciaProfesional", "ExperienciaProfesionalMeses"],
+    ["experienciaLaboralTotal", "ExperienciaLaboral"],
+    ["experienciaProfesional", "ExperienciaProfesional"],
   ] as const) {
     const valor = enteroOpcional(experiencia[campoFormulario], campoMid, 0);
     if (valor !== undefined) {
       detalle[campoMid] = valor;
       camposActualizados += 1;
     }
+  }
+
+  const paisNacimientoId = enteroOpcional(
+    identificacion["paisNacimiento"],
+    "PaisNacimientoId",
+    1,
+  );
+  if (paisNacimientoId !== undefined) {
+    detalle.PaisNacimientoId = paisNacimientoId;
+    camposActualizados += 1;
+  }
+  for (const [campoFormulario, campoMid] of [
+    ["medicinaPrepagada", "MedicinaPrepagada"],
+    ["responsableIva", "ResponsableIva"],
+    ["resideFiscalmenteColombia", "ResideColombia"],
+    ["aportesPensionVoluntaria", "PensionVoluntaria"],
+  ] as const) {
+    const valor = booleanoOpcional(tributario, campoFormulario);
+    if (valor !== undefined) {
+      detalle[campoMid] = valor;
+      camposActualizados += 1;
+    }
+  }
+  const pensionado = booleanoOpcional(
+    finanzas,
+    "pensionadoAsignacionRetiro",
+  );
+  if (pensionado !== undefined) {
+    detalle.Pensionado = pensionado;
+    camposActualizados += 1;
   }
 
   const descripcionPortafolioHtml = textoOpcional(
@@ -561,14 +652,25 @@ export function mapearActualizacionPersonaNaturalMid(
     cuentaBancaria.NumeroCuenta = numeroCuenta;
     camposActualizados += 1;
   }
-  if (cuentaId === undefined && Object.keys(cuentaBancaria).length > 0) {
-    cuentaBancaria.EsPrincipal = true;
+  const montoCapitalAutorizado = enteroOpcional(
+    finanzas["capitalAutorizadoPatrimonio"],
+    "MontoCapitalAutorizado",
+    0,
+  );
+  if (montoCapitalAutorizado !== undefined) {
+    cuentaBancaria.MontoCapitalAutorizado = montoCapitalAutorizado;
+    camposActualizados += 1;
   }
   if (cuentaId === undefined && Object.keys(cuentaBancaria).length === 0) {
     omisiones.push(
       "CuentaBancaria omitida: el paso no contiene los campos bancarios para crearla.",
     );
   }
+  const actividades = actividadesNuevas(
+    actividad["actividadesCiiu"],
+    datosConsultados,
+  );
+  camposActualizados += actividades.length;
 
   if (camposActualizados === 0) {
     throw new Error(
@@ -579,7 +681,7 @@ export function mapearActualizacionPersonaNaturalMid(
   const payload: ActualizarProveedorNaturalMidPayload = {
     Id: base.Id,
     TerceroId: base.TerceroId,
-    TipoRegistroId: base.TipoRegistroId,
+    TipoProveedor: base.TipoProveedor,
     Tercero: tercero,
     ProveedorNatural: detalle,
   };
@@ -592,6 +694,9 @@ export function mapearActualizacionPersonaNaturalMid(
     omisiones.push(
       "CuentaBancaria no modificada: no hay campos bancarios editables con valor.",
     );
+  }
+  if (actividades.length > 0) {
+    payload.ActividadEconomicaProveedor = actividades;
   }
 
   return {
@@ -616,6 +721,7 @@ export function mapearActualizacionPersonaJuridicaMid(
   const omisiones = [
     "DatosIdentificacion y Contacto se omiten en PATCH; no se envían propiedades documentales con equivalencia no confirmada ni contactos sin valores contractuales confirmados.",
     "La vista representa una cuenta bancaria; las cuentas adicionales consultadas no se modifican ni eliminan.",
+    "La actividad económica principal no se distingue: el contrato solo permite registrar los IDs de las actividades.",
     "Los campos omitidos no se borran; el contrato no define el uso de null para limpiar valores.",
   ];
   let camposActualizados = 0;
@@ -625,33 +731,24 @@ export function mapearActualizacionPersonaJuridicaMid(
     tercero.NombreCompleto = razonSocial;
     camposActualizados += 1;
   }
-  const nombreComercial = textoOpcional(formulario, "nombreComercial");
-  if (nombreComercial !== undefined) {
-    detalle.NombreComercial = nombreComercial;
-    camposActualizados += 1;
-  }
-
-  const matricula = textoOpcional(formulario, "matriculaMercantil");
-  if (matricula !== undefined) {
-    detalle.MatriculaMercantil = matriculaMercantilValidada(matricula);
-    camposActualizados += 1;
-  }
-
   for (const [campoFormulario, campoMid] of [
-    ["fechaConstitucion", "FechaConstitucion"],
-    ["fechaRenovacion", "FechaRenovacion"],
+    ["procedencia", "ProcedenciaEmpresaId"],
+    ["regimenContributivo", "RegimenContributivo"],
   ] as const) {
-    const fecha = fechaOpcional(formulario, campoFormulario);
-    if (fecha !== undefined) {
-      detalle[campoMid] = fecha;
+    const valor = enteroOpcional(formulario[campoFormulario], campoMid, 1);
+    if (valor !== undefined) {
+      detalle[campoMid] = valor;
       camposActualizados += 1;
     }
   }
-
   for (const [campoFormulario, campoMid] of [
-    ["beneficiariosFinales", "ReportaBeneficiosFinales"],
-    ["cotizaBolsa", "CotizaBolsa"],
-    ["revisorFiscal", "RequiereRevisorFiscal"],
+    ["exclusividadImportacion", "ExclusividadProducto"],
+    ["clasificacionPyme", "Pyme"],
+    ["registroMercantilActivo", "RegistroMercantil"],
+    ["sujetoRetencion", "SujetoRetencion"],
+    ["agenteRetenedor", "AgenteRetenedor"],
+    ["responsableIca", "ResponsableIca"],
+    ["responsableIva", "ResponsableIva"],
   ] as const) {
     const valor = booleanoOpcional(formulario, campoFormulario);
     if (valor !== undefined) {
@@ -701,22 +798,14 @@ export function mapearActualizacionPersonaJuridicaMid(
     cuentaBancaria.NumeroCuenta = numeroCuenta;
     camposActualizados += 1;
   }
-  const nombreTitular = textoOpcional(formulario, "titularCuenta");
-  if (nombreTitular !== undefined) {
-    cuentaBancaria.NombreTitular = nombreTitular;
-    camposActualizados += 1;
-  }
-  const ciudadAperturaId = enteroNumericoOpcional(
-    formulario["ciudadApertura"],
-    "CiudadAperturaId",
-    1,
+  const montoCapitalAutorizado = enteroOpcional(
+    formulario["capitalAutorizado"],
+    "MontoCapitalAutorizado",
+    0,
   );
-  if (ciudadAperturaId !== undefined) {
-    cuentaBancaria.CiudadAperturaId = ciudadAperturaId;
+  if (montoCapitalAutorizado !== undefined) {
+    cuentaBancaria.MontoCapitalAutorizado = montoCapitalAutorizado;
     camposActualizados += 1;
-  }
-  if (cuentaId === undefined && Object.keys(cuentaBancaria).length > 0) {
-    cuentaBancaria.EsPrincipal = true;
   }
   if (cuentaId === undefined && Object.keys(cuentaBancaria).length === 0) {
     omisiones.push(
@@ -724,6 +813,13 @@ export function mapearActualizacionPersonaJuridicaMid(
     );
   }
 
+  const actividades = actividadesNuevas(
+    formulario["actividadesCiiu"],
+    datosConsultados,
+  );
+  if (actividades.length > 0) {
+    camposActualizados += actividades.length;
+  }
   if (camposActualizados === 0) {
     throw new Error(
       "No hay campos compatibles con el MID para actualizar en Persona Jurídica.",
@@ -733,7 +829,7 @@ export function mapearActualizacionPersonaJuridicaMid(
   const payload: ActualizarProveedorJuridicoMidPayload = {
     Id: base.Id,
     TerceroId: base.TerceroId,
-    TipoRegistroId: base.TipoRegistroId,
+    TipoProveedor: base.TipoProveedor,
     Tercero: tercero,
     ProveedorJuridico: detalle,
   };
@@ -747,6 +843,14 @@ export function mapearActualizacionPersonaJuridicaMid(
       "CuentaBancaria no modificada: no hay campos bancarios editables con valor.",
     );
   }
+  if (actividades.length > 0) {
+    payload.ActividadEconomicaProveedor = actividades;
+  }
+  omisiones.push(
+    "DatosIdentificacion no se modifican en PATCH para evitar crear una identificación duplicada.",
+    "TipoConformacion no se envía: el control actual describe la conformación de la cuenta bancaria, no el tipo societario.",
+    "Las actividades económicas quitadas del formulario no se borran porque el contrato no ofrece una operación de eliminación.",
+  );
 
   return {
     payload,
@@ -758,7 +862,7 @@ export function combinarProveedorMidMaterializado(
   anterior: ProveedorMidMaterializado,
   reciente: ProveedorMidMaterializado,
 ): ProveedorMidMaterializado {
-  for (const campo of ["Id", "TerceroId", "TipoRegistroId"] as const) {
+  for (const campo of ["Id", "TerceroId", "TipoProveedor"] as const) {
     if (
       reciente[campo] !== undefined
       && anterior[campo] !== undefined
@@ -775,7 +879,7 @@ export function combinarProveedorMidMaterializado(
     ...reciente,
     Id: anterior.Id,
     TerceroId: anterior.TerceroId,
-    TipoRegistroId: anterior.TipoRegistroId,
+    TipoProveedor: anterior.TipoProveedor,
   };
 
   for (const rama of [
@@ -818,7 +922,11 @@ export function combinarProveedorMidMaterializado(
     combinado["Tercero"] = tercero;
   }
 
-  for (const relacion of ["Contacto", "CuentaBancaria"] as const) {
+  for (const relacion of [
+    "Contacto",
+    "CuentaBancaria",
+    "ActividadEconomicaProveedor",
+  ] as const) {
     const valoresAnteriores = anterior[relacion];
     if (Array.isArray(valoresAnteriores)) {
       combinado[relacion] = valoresAnteriores;
@@ -834,6 +942,15 @@ export function mapearPersonaNaturalMid(
   const formulario = registro(valorFormulario, "persona natural");
   const identificacion = registro(formulario["identificacion"], "identificación");
   const experiencia = registro(formulario["experiencia"], "experiencia");
+  const tributario = registro(formulario["tributario"], "información tributaria");
+  const afiliaciones = registro(
+    formulario["afiliacionesFinanzas"],
+    "afiliaciones y finanzas",
+  );
+  const actividad = registro(
+    formulario["actividadDeclaracion"],
+    "actividad",
+  );
 
   const numeroDocumento = textoOpcional(identificacion, "numeroDocumento");
   const tipoDocumentoId = enteroOpcional(
@@ -842,11 +959,11 @@ export function mapearPersonaNaturalMid(
     1,
   );
   let datosDocumento: DatosIdentificacionMid | undefined;
-  if (numeroDocumento && tipoDocumentoId !== undefined) {
-    datosDocumento = {
-      Numero: numeroDocumento,
-      TipoDocumentoId: tipoDocumentoId,
-    };
+  if (numeroDocumento) {
+    datosDocumento = { Numero: numeroDocumento };
+    if (tipoDocumentoId !== undefined) {
+      datosDocumento.TipoDocumentoId = tipoDocumentoId;
+    }
     const ciudadExpedicion = enteroOpcional(
       identificacion["ciudadExpedicion"],
       "CiudadExpedicion",
@@ -864,11 +981,11 @@ export function mapearPersonaNaturalMid(
     }
     const digitoVerificacion = enteroOpcional(
       identificacion["dv"],
-      "DigitoVerificacion",
+      "DigitoVerficacion",
       0,
     );
     if (digitoVerificacion !== undefined) {
-      datosDocumento.DigitoVerificacion = digitoVerificacion;
+      datosDocumento.DigitoVerficacion = digitoVerificacion;
     }
   }
 
@@ -892,22 +1009,49 @@ export function mapearPersonaNaturalMid(
   }
 
   const proveedorNatural: ProveedorNaturalMid = {
-    ExperienciaLaboralMeses: entero(
+    ExperienciaLaboral: entero(
       experiencia["experienciaLaboralTotal"],
-      "ExperienciaLaboralMeses",
+      "ExperienciaLaboral",
       0,
     ),
-    ExperienciaProfesionalMeses: entero(
+    ExperienciaProfesional: entero(
       experiencia["experienciaProfesional"],
-      "ExperienciaProfesionalMeses",
+      "ExperienciaProfesional",
       0,
     ),
   };
+  const paisNacimientoId = enteroOpcional(
+    identificacion["paisNacimiento"],
+    "PaisNacimientoId",
+    1,
+  );
+  if (paisNacimientoId !== undefined) {
+    proveedorNatural.PaisNacimientoId = paisNacimientoId;
+  }
+  for (const [campoFormulario, campoMid] of [
+    ["medicinaPrepagada", "MedicinaPrepagada"],
+    ["responsableIva", "ResponsableIva"],
+    ["resideFiscalmenteColombia", "ResideColombia"],
+    ["aportesPensionVoluntaria", "PensionVoluntaria"],
+  ] as const) {
+    const valor = booleanoOpcional(tributario, campoFormulario);
+    if (valor !== undefined) {
+      proveedorNatural[campoMid] = valor;
+    }
+  }
+  const pensionado = booleanoOpcional(
+    afiliaciones,
+    "pensionadoAsignacionRetiro",
+  );
+  if (pensionado !== undefined) {
+    proveedorNatural.Pensionado = pensionado;
+  }
 
   const omisiones = [
-    "Caracterización, información tributaria, dirección y contactos omitidos: el MID no declara actualmente estos campos como escribibles.",
-    "Género y país de nacimiento omitidos: el MID no declara actualmente estos campos como escribibles.",
-    "PerfilDeclarado omitido: el catálogo Grupo_5 del formulario no está confirmado como el catálogo Perfil del MID.",
+    "Caracterización socio-demográfica, dirección y contactos omitidos: no tienen propiedades equivalentes en el contrato de escritura.",
+    "Los montos de medicina prepagada, AFC y pensión voluntaria no se envían porque el formulario no los captura.",
+    "Perfil omitido: no se confirmó que el catálogo del formulario corresponda al Perfil del MID.",
+    "La actividad económica principal no se distingue: el contrato solo permite registrar los IDs de las actividades.",
     "TipoContribuyenteId omitido: no se confirmó una fuente autorizada y el formulario no recopila este identificador.",
     "Los campos de pasos posteriores no se incluyen en el POST inicial.",
   ];
@@ -922,6 +1066,13 @@ export function mapearPersonaNaturalMid(
       "DatosIdentificacion omitidos: el contrato permite omitir la relación y no se construye con una clave natural incompleta.",
     );
   }
+  const actividades = actividadesNuevas(
+    actividad["actividadesCiiu"],
+    {},
+  );
+  if (actividades.length > 0) {
+    payload.ActividadEconomicaProveedor = actividades;
+  }
   return { payload, omisiones };
 }
 
@@ -930,71 +1081,76 @@ export function mapearPersonaJuridicaMid(
 ): MapeoPayloadMid<NuevoProveedorJuridicoMidPayload> {
   const formulario = registro(valorFormulario, "persona jurídica");
   const omisiones = [
-    "NIT omitido: el formulario no proporciona el TipoDocumentoId confirmado para NIT.",
-    "Representante legal omitido: el MID no declara actualmente una relación escribible para este nodo.",
-    "Información tributaria, dirección y contactos omitidos: el MID no declara actualmente estos campos como escribibles.",
-    "Procedencia omitida: su propiedad no está declarada en el modelo escribible actual.",
+    "Datos del representante legal omitidos: no existe una relación escribible equivalente confirmada en el contrato.",
+    "Dirección y contactos omitidos: no se confirmó el TipoCanalContactoId requerido para crear contactos.",
+    "Calidad de gran contribuyente omitida: no tiene una propiedad equivalente en ProveedorJuridico.",
+    "La actividad económica principal no se distingue: el contrato solo permite registrar los IDs de las actividades.",
     "Los campos de pasos posteriores no se incluyen en el POST inicial.",
   ];
 
   const tercero: TerceroMid = {
     NombreCompleto: textoRequerido(formulario, "razonSocial"),
   };
-
-  // Solo se envían los campos societarios que el formulario todavía aporta.
+  const numeroNit = textoOpcional(formulario, "nit");
+  if (numeroNit) {
+    const documento: DatosIdentificacionMid = { Numero: numeroNit };
+    const digitoVerificacion = enteroOpcional(
+      formulario["digitoVerificacion"],
+      "DigitoVerficacion",
+      0,
+    );
+    if (digitoVerificacion !== undefined) {
+      documento.DigitoVerficacion = digitoVerificacion;
+    }
+    tercero.DatosIdentificacion = [documento];
+  } else {
+    omisiones.push(
+      "DatosIdentificacion omitidos: el formulario no contiene un NIT válido.",
+    );
+  }
   const proveedorJuridico: ProveedorJuridicoMid = {};
-  const camposSocietariosOmitidos: string[] = [];
-
-  const matricula = textoOpcional(formulario, "matriculaMercantil");
-  if (matricula !== undefined) {
-    proveedorJuridico.MatriculaMercantil =
-      matriculaMercantilValidada(matricula);
-  } else {
-    camposSocietariosOmitidos.push("MatriculaMercantil");
+  const procedenciaEmpresaId = enteroOpcional(
+    formulario["procedencia"],
+    "ProcedenciaEmpresaId",
+    1,
+  );
+  if (procedenciaEmpresaId !== undefined) {
+    proveedorJuridico.ProcedenciaEmpresaId = procedenciaEmpresaId;
   }
-
-  const fechaConstitucion = fechaOpcional(formulario, "fechaConstitucion");
-  if (fechaConstitucion !== undefined) {
-    proveedorJuridico.FechaConstitucion = fechaConstitucion;
-  } else {
-    camposSocietariosOmitidos.push("FechaConstitucion");
+  const regimenContributivo = enteroOpcional(
+    formulario["regimenContributivo"],
+    "RegimenContributivo",
+    1,
+  );
+  if (regimenContributivo !== undefined) {
+    proveedorJuridico.RegimenContributivo = regimenContributivo;
   }
-
-  const fechaRenovacion = fechaOpcional(formulario, "fechaRenovacion");
-  if (fechaRenovacion !== undefined) {
-    proveedorJuridico.FechaRenovacion = fechaRenovacion;
-  } else {
-    camposSocietariosOmitidos.push("FechaRenovacion");
-  }
-
   for (const [campoFormulario, campoMid] of [
-    ["beneficiariosFinales", "ReportaBeneficiosFinales"],
-    ["cotizaBolsa", "CotizaBolsa"],
-    ["revisorFiscal", "RequiereRevisorFiscal"],
+    ["exclusividadImportacion", "ExclusividadProducto"],
+    ["clasificacionPyme", "Pyme"],
+    ["registroMercantilActivo", "RegistroMercantil"],
+    ["sujetoRetencion", "SujetoRetencion"],
+    ["agenteRetenedor", "AgenteRetenedor"],
+    ["responsableIca", "ResponsableIca"],
+    ["responsableIva", "ResponsableIva"],
   ] as const) {
     const valor = booleanoOpcional(formulario, campoFormulario);
     if (valor !== undefined) {
       proveedorJuridico[campoMid] = valor;
-    } else {
-      camposSocietariosOmitidos.push(campoMid);
     }
-  }
-
-  const nombreComercial = textoOpcional(formulario, "nombreComercial");
-  if (nombreComercial) {
-    proveedorJuridico.NombreComercial = nombreComercial;
-  }
-
-  if (camposSocietariosOmitidos.length > 0) {
-    omisiones.push(
-      `ProveedorJuridico parcial: se omitieron ${camposSocietariosOmitidos.join(", ")} porque el formulario ya no los captura.`,
-    );
   }
 
   const payload: NuevoProveedorJuridicoMidPayload = {
     Tercero: tercero,
     ProveedorJuridico: proveedorJuridico,
   };
+  const actividades = actividadesNuevas(
+    formulario["actividadesCiiu"],
+    {},
+  );
+  if (actividades.length > 0) {
+    payload.ActividadEconomicaProveedor = actividades;
+  }
 
   return { payload, omisiones };
 }

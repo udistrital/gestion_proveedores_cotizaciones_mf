@@ -1,7 +1,7 @@
 export interface DatosIdentificacionMid {
   Numero: string;
   TipoDocumentoId?: number;
-  DigitoVerificacion?: number;
+  DigitoVerficacion?: number;
   CiudadExpedicion?: number;
   FechaExpedicion?: string;
 }
@@ -14,41 +14,67 @@ export interface TerceroMid {
   SegundoApellido?: string;
   FechaNacimiento?: string;
   TipoContribuyenteId?: number;
+  UsuarioWso2?: string;
   DatosIdentificacion?: DatosIdentificacionMid[];
 }
 
 export interface ContactoMid {
+  Id?: number;
   NombreContacto?: string;
-  Finalidad?: string;
-  TipoCanal?: string;
   ValorEspecifico?: string;
+  TipoCanalContactoId?: number;
+  Proposito?: string;
   Extension?: string;
-  EsPrincipal?: boolean;
+  UsuarioModificacionId?: number;
 }
 
 export interface CuentaBancariaMid {
+  Id?: number;
   EntidadBancariaId?: number;
   TipoCuentaId?: number;
   NumeroCuenta?: string;
-  NombreTitular?: string;
-  CiudadAperturaId?: number;
-  EsPrincipal?: boolean;
+  ContactoId?: number;
+  MontoCapitalAutorizado?: number;
+  UsuarioModificacionId?: number;
 }
 
 export interface ProveedorNaturalMid {
-  PerfilDeclarado?: number;
-  ExperienciaLaboralMeses?: number;
-  ExperienciaProfesionalMeses?: number;
+  PaisNacimientoId?: number;
+  Cargo?: number;
+  MedicinaPrepagada?: boolean;
+  ValorUvtPrepagada?: number;
+  InteresViviendaAfc?: number;
+  DependienteHijoMejorEdad?: boolean;
+  DependienteHijoMenos23Estudiando?: boolean;
+  DependienteHijoMas23Discapacitado?: boolean;
+  DependienteConyuge?: boolean;
+  DependientePadreOHermano?: boolean;
+  Pensionado?: boolean;
+  ValorAfc?: number;
+  ResponsableIva?: boolean;
+  ResideColombia?: boolean;
+  PensionVoluntaria?: boolean;
+  ValorPensionVoluntaria?: number;
+  ExperienciaLaboral?: number;
+  ExperienciaProfesional?: number;
+  UsuarioModificacionId?: number;
 }
 
 export interface ProveedorJuridicoMid {
-  NombreComercial?: string;
-  MatriculaMercantil?: string;
-  FechaConstitucion?: string;
-  FechaRenovacion?: string;
-  ReportaBeneficiosFinales?: boolean;
-  CotizaBolsa?: boolean;
-  RequiereRevisorFiscal?: boolean;
+  ProcedenciaEmpresaId?: number;
+  CiudadOrigenId?: number;
+  PaisOrigenId?: number;
+  CodigoPostal?: string;
+  TipoConformacionId?: number;
+  ExclusividadProducto?: boolean;
+  RegimenContributivo?: number;
+  Pyme?: boolean;
+  RegistroMercantil?: boolean;
+  SujetoRetencion?: boolean;
+  AgenteRetenedor?: boolean;
+  ResponsableIca?: boolean;
+  ResponsableIva?: boolean;
+  UsuarioModificacionId?: number;
 }
 
 interface ProveedorMidBase {
@@ -56,26 +82,30 @@ interface ProveedorMidBase {
   Tercero: TerceroMid;
   Contacto?: ContactoMid[];
   CuentaBancaria?: CuentaBancariaMid[];
+  ActividadEconomicaProveedor?: Array<{
+    ActividadEconomicaId: number;
+    UsuarioModificacionId?: number;
+  }>;
 }
 
 export interface ProveedorNaturalMidRequest extends ProveedorMidBase {
-  TipoRegistroId: number;
+  TipoProveedor: number;
   ProveedorNatural: ProveedorNaturalMid;
 }
 
 export interface ProveedorJuridicoMidRequest extends ProveedorMidBase {
-  TipoRegistroId: number;
+  TipoProveedor: number;
   ProveedorJuridico: ProveedorJuridicoMid;
 }
 
 export type NuevoProveedorNaturalMidPayload = Omit<
   ProveedorNaturalMidRequest,
-  "TipoRegistroId"
+  "TipoProveedor"
 >;
 
 export type NuevoProveedorJuridicoMidPayload = Omit<
   ProveedorJuridicoMidRequest,
-  "TipoRegistroId"
+  "TipoProveedor"
 >;
 
 export interface ConsultaProveedorMidRequest {
@@ -104,10 +134,14 @@ export interface ProveedorJuridicoMidActualizacion
 interface ActualizacionProveedorMidBase {
   Id: number;
   TerceroId: number;
-  TipoRegistroId: number;
+  TipoProveedor: number;
   Tercero: TerceroMidActualizacion;
   DescripcionPortafolio?: string;
   CuentaBancaria?: CuentaBancariaMidActualizacion[];
+  ActividadEconomicaProveedor?: Array<{
+    ActividadEconomicaId: number;
+    UsuarioModificacionId?: number;
+  }>;
 }
 
 export interface ActualizarProveedorNaturalMidPayload
@@ -131,7 +165,7 @@ export interface ProveedorMidMaterializado {
   [propiedad: string]: unknown;
   Id?: number;
   TerceroId?: number;
-  TipoRegistroId?: number;
+  TipoProveedor?: number;
 }
 
 export interface RespuestaMid<TData = ProveedorMidMaterializado> {

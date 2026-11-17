@@ -103,7 +103,7 @@ function interpretarRespuestaMid(valor: unknown): RespuestaMid {
     }
     const id = enteroOpcional(valorData, "Id");
     const terceroId = enteroOpcional(valorData, "TerceroId");
-    const tipoRegistroId = enteroOpcional(valorData, "TipoRegistroId");
+    const tipoProveedor = enteroOpcional(valorData, "TipoProveedor");
     data = {};
     for (const campo of Object.keys(valorData)) {
       data[campo] = valorData[campo];
@@ -114,8 +114,8 @@ function interpretarRespuestaMid(valor: unknown): RespuestaMid {
     if (terceroId !== undefined) {
       data.TerceroId = terceroId;
     }
-    if (tipoRegistroId !== undefined) {
-      data.TipoRegistroId = tipoRegistroId;
+    if (tipoProveedor !== undefined) {
+      data.TipoProveedor = tipoProveedor;
     }
   }
 
@@ -362,11 +362,47 @@ export class GestionPersonasMidService {
       const request: ConsultaProveedorMidRequest = {
         id,
         fields: [
-          "Tercero",
-          "Tercero.DatosIdentificacion",
-          "ProveedorNatural",
-          "ProveedorJuridico",
-          "CuentaBancaria",
+          "Id",
+          "TerceroId",
+          "TipoProveedor",
+          "DescripcionPortafolio",
+          "Tercero.Id",
+          "Tercero.NombreCompleto",
+          "Tercero.PrimerNombre",
+          "Tercero.SegundoNombre",
+          "Tercero.PrimerApellido",
+          "Tercero.SegundoApellido",
+          "Tercero.FechaNacimiento",
+          "Tercero.DatosIdentificacion.Numero",
+          "Tercero.DatosIdentificacion.TipoDocumentoId",
+          "Tercero.DatosIdentificacion.DigitoVerficacion",
+          "Tercero.DatosIdentificacion.CiudadExpedicion",
+          "Tercero.DatosIdentificacion.FechaExpedicion",
+          "ProveedorNatural.Id",
+          "ProveedorNatural.PaisNacimientoId",
+          "ProveedorNatural.MedicinaPrepagada",
+          "ProveedorNatural.Pensionado",
+          "ProveedorNatural.ResponsableIva",
+          "ProveedorNatural.ResideColombia",
+          "ProveedorNatural.PensionVoluntaria",
+          "ProveedorNatural.ExperienciaLaboral",
+          "ProveedorNatural.ExperienciaProfesional",
+          "ProveedorJuridico.Id",
+          "ProveedorJuridico.ProcedenciaEmpresaId",
+          "ProveedorJuridico.RegimenContributivo",
+          "ProveedorJuridico.ExclusividadProducto",
+          "ProveedorJuridico.Pyme",
+          "ProveedorJuridico.RegistroMercantil",
+          "ProveedorJuridico.SujetoRetencion",
+          "ProveedorJuridico.AgenteRetenedor",
+          "ProveedorJuridico.ResponsableIca",
+          "ProveedorJuridico.ResponsableIva",
+          "CuentaBancaria.Id",
+          "CuentaBancaria.EntidadBancariaId",
+          "CuentaBancaria.TipoCuentaId",
+          "CuentaBancaria.NumeroCuenta",
+          "CuentaBancaria.MontoCapitalAutorizado",
+          "ActividadEconomicaProveedor.ActividadEconomicaId",
         ],
       };
       return this.http
@@ -402,11 +438,11 @@ export class GestionPersonasMidService {
   ): Observable<RespuestaMid> {
     return defer(() => {
       const baseUrl = this.urlBaseConfigurada();
-      return this.resolverTipoRegistroId("P_NATURAL").pipe(
-        switchMap((tipoRegistroId) => {
+      return this.resolverTipoProveedorId("P_NATURAL").pipe(
+        switchMap((tipoProveedor) => {
           const request: ProveedorNaturalMidRequest = {
             ...payload,
-            TipoRegistroId: tipoRegistroId,
+            TipoProveedor: tipoProveedor,
           };
           return this.http.post<unknown>(`${baseUrl}/proveedor`, request);
         }),
@@ -420,11 +456,11 @@ export class GestionPersonasMidService {
   ): Observable<RespuestaMid> {
     return defer(() => {
       const baseUrl = this.urlBaseConfigurada();
-      return this.resolverTipoRegistroId("P_JURIDICA").pipe(
-        switchMap((tipoRegistroId) => {
+      return this.resolverTipoProveedorId("P_JURIDICA").pipe(
+        switchMap((tipoProveedor) => {
           const request: ProveedorJuridicoMidRequest = {
             ...payload,
-            TipoRegistroId: tipoRegistroId,
+            TipoProveedor: tipoProveedor,
           };
           return this.http.post<unknown>(`${baseUrl}/proveedor`, request);
         }),
@@ -446,7 +482,7 @@ export class GestionPersonasMidService {
     return baseUrl.replace(/\/+$/, "");
   }
 
-  private resolverTipoRegistroId(
+  private resolverTipoProveedorId(
     codigo: "P_NATURAL" | "P_JURIDICA",
   ): Observable<number> {
     const url = `${environment.TERCEROS_SERVICE.replace(/\/+$/, "")}/tipo_contribuyente`;
