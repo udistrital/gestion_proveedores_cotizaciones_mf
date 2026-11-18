@@ -227,6 +227,18 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
       });
   }
 
+  private conservarProveedorActualEnRuta(id: number): void {
+      if (this.route.snapshot.queryParamMap.get("id") === String(id)) {
+        return;
+      }
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { id },
+        queryParamsHandling: "merge",
+        replaceUrl: true,
+      });
+  }
+
   regresarARegistroInicial(): void {
     void this.router.navigateByUrl("/proveedores/registro-inicio-persona");
   }
@@ -489,9 +501,6 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
     const ciudadesValidas = this.ciudadValida();
     if (!this.validarFormulario() || !ciudadesValidas || this.formulario.invalid) {
       this.formulario.markAllAsTouched();
-      this.estadoMensaje = "No se puede finalizar el registro";
-      this.estadoDetalle = "Revise los campos obligatorios del formulario.";
-      return;
     }
 
     this.guardarPasoActual(false);
@@ -542,34 +551,17 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
             "Consulte el estado del registro en el MID antes de continuar.";
           return;
         }
-        const valor = this.formulario.getRawValue();
         const formularioPaso: Record<string, unknown> = {};
-        if (this.pasoActual === 1) {
-          formularioPaso["razonSocial"] = valor["razonSocial"];
-        } else if (this.pasoActual === 2) {
-          Object.assign(formularioPaso, {
-            banco: valor["banco"],
-            tipoCuenta: valor["tipoCuenta"],
-            numeroCuenta: valor["numeroCuenta"],
-            titularCuenta: valor["razonSocial"],
-          });
-        } else if (this.pasoActual === 4) {
-          formularioPaso["descripcionServicios"] = valor["descripcionServicios"];
+        for (const campo of camposPorPaso[this.pasoActual] ?? []) {
+          const control = this.formulario.get(campo);
+          if (control?.dirty) {
+            formularioPaso[campo] = control.value;
+          }
         }
         const mapeo = mapearActualizacionPersonaJuridicaMid(
           formularioPaso,
           this.proveedorPersistido,
         );
-        if (this.pasoActual === 2) {
-          mapeo.omisiones.push(
-            "Información financiera y contacto de pagos no se enviaron: el MID no declara esos nodos como escribibles.",
-          );
-        }
-        if (this.pasoActual === 4) {
-          mapeo.omisiones.push(
-            "Actividades CIIU y consentimiento no se enviaron: el MID no declara esos nodos como escribibles.",
-          );
-        }
         solicitud = this.gestionPersonasMidService.actualizarPersonaJuridica(
           mapeo.payload,
         );
@@ -603,6 +595,9 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
           this.guardando = false;
           this.envioIndeterminado = true;
           this.proveedorMidId = resultado.proveedorId ?? this.proveedorMidId;
+          if (this.proveedorMidId !== undefined) {
+            this.conservarProveedorActualEnRuta(this.proveedorMidId);
+          }
           this.estadoMensaje = resultado.mensaje;
           this.estadoDetalle = resultado.detalle;
           return;
@@ -618,6 +613,7 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
           return;
         }
         this.proveedorMidId = id;
+        this.conservarProveedorActualEnRuta(id);
         this.registroParcial = this.registroParcial
           || omisiones.length > 0
           || resultado.tipo === "partial";
@@ -940,9 +936,11 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
       return;
     }
 
-    if (this.validarFormulario()) {
-      this.guardarPasoActual(true);
+    if (!this.validarFormulario()) {
+      this.guardarPasoActual(false);
+      return;
     }
+    this.guardarPasoActual(true);
   }
 
   regresar(): void {

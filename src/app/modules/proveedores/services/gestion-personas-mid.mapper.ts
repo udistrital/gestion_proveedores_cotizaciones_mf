@@ -55,13 +55,30 @@ function textoOpcional(
   return texto.length > 0 ? texto : undefined;
 }
 
-function textoRequerido(
+function textoActualizacion(
   datos: Record<string, unknown>,
   campo: string,
-): string {
-  const valor = textoOpcional(datos, campo);
-  if (!valor) {
-    throw new Error(`El campo ${campo} no contiene un valor válido.`);
+): string | undefined {
+  const valor = datos[campo];
+  if (valor === undefined || valor === null) {
+    return undefined;
+  }
+  if (typeof valor !== "string") {
+    throw new Error(`El campo ${campo} debe ser una cadena.`);
+  }
+  return valor;
+}
+
+function textoNullableActualizacion(
+  datos: Record<string, unknown>,
+  campo: string,
+): string | null | undefined {
+  const valor = datos[campo];
+  if (valor === undefined || valor === null) {
+    return valor;
+  }
+  if (typeof valor !== "string") {
+    throw new Error(`El campo ${campo} debe ser una cadena.`);
   }
   return valor;
 }
@@ -166,11 +183,11 @@ function idMaterializado(
 function esModalidad(
   datos: ProveedorMidMaterializado,
   rama: "ProveedorNatural" | "ProveedorJuridico",
-): Record<string, unknown> {
+): Record<string, unknown> | undefined {
   const detalle = registroOpcional(datos[rama], rama);
   const otraRama =
     rama === "ProveedorNatural" ? "ProveedorJuridico" : "ProveedorNatural";
-  if (!detalle || (datos[otraRama] !== undefined && datos[otraRama] !== null)) {
+  if (datos[otraRama] !== undefined && datos[otraRama] !== null) {
     throw new Error(`La respuesta consultada no corresponde a ${rama}.`);
   }
   return detalle;
@@ -280,8 +297,8 @@ function actividadesNuevas(
 export function mapearConsultaPersonaNaturalMid(
   datos: ProveedorMidMaterializado,
 ): Record<string, unknown> {
-  const tercero = registro(datos["Tercero"], "Tercero");
-  const detalle = esModalidad(datos, "ProveedorNatural");
+  const tercero = registroOpcional(datos["Tercero"], "Tercero") ?? {};
+  const detalle = esModalidad(datos, "ProveedorNatural") ?? {};
   const identificacion: Record<string, unknown> = {};
   const experiencia: Record<string, unknown> = {};
   const afiliacionesFinanzas: Record<string, unknown> = {};
@@ -417,8 +434,8 @@ export function mapearConsultaPersonaNaturalMid(
 export function mapearConsultaPersonaJuridicaMid(
   datos: ProveedorMidMaterializado,
 ): Record<string, unknown> {
-  const tercero = registro(datos["Tercero"], "Tercero");
-  const detalle = esModalidad(datos, "ProveedorJuridico");
+  const tercero = registroOpcional(datos["Tercero"], "Tercero") ?? {};
+  const detalle = esModalidad(datos, "ProveedorJuridico") ?? {};
   const formulario: Record<string, unknown> = {};
   const documento = primeraRelacion(tercero, "DatosIdentificacion");
   const cuenta = primeraRelacion(datos, "CuentaBancaria");
@@ -488,20 +505,32 @@ function baseActualizacion(
   rama: "ProveedorNatural" | "ProveedorJuridico",
 ): {
   Id: number;
-  TerceroId: number;
+  TerceroId?: number;
   TipoProveedor: number;
-  TerceroIdMaterializado: number;
-  DetalleId: number;
+  TerceroIdMaterializado?: number;
+  DetalleId?: number;
 } {
   const proveedorId = idMaterializado(datos, "Id", "Proveedor");
-  const terceroId = idMaterializado(datos, "TerceroId", "Proveedor");
+  const terceroId = enteroNumericoOpcional(
+    datos.TerceroId,
+    "Proveedor.TerceroId",
+    1,
+  );
   const tipoProveedor = idMaterializado(datos, "TipoProveedor", "Proveedor");
-  const tercero = registro(datos["Tercero"], "Tercero");
-  const terceroIdMaterializado = idMaterializado(tercero, "Id", "Tercero");
+  const tercero = registroOpcional(datos["Tercero"], "Tercero");
+  const terceroIdMaterializado = tercero
+    ? enteroNumericoOpcional(tercero["Id"], "Tercero.Id", 1) ?? terceroId
+    : terceroId;
   const detalle = esModalidad(datos, rama);
-  const detalleId = idMaterializado(detalle, "Id", rama);
+  const detalleId = detalle
+    ? enteroNumericoOpcional(detalle["Id"], `${rama}.Id`, 1)
+    : undefined;
 
-  if (terceroId !== terceroIdMaterializado) {
+  if (
+    terceroId !== undefined
+    && terceroIdMaterializado !== undefined
+    && terceroId !== terceroIdMaterializado
+  ) {
     throw new Error(
       "TerceroId no coincide con Tercero.Id; no se enviará PATCH con una relación ambigua.",
     );
@@ -536,12 +565,14 @@ export function mapearActualizacionPersonaNaturalMid(
     "actividad",
   );
   const base = baseActualizacion(datosConsultados, "ProveedorNatural");
-  const tercero: TerceroMidActualizacion = {
-    Id: base.TerceroIdMaterializado,
-  };
-  const detalle: ProveedorNaturalMidActualizacion = {
-    Id: base.DetalleId,
-  };
+  const tercero: TerceroMidActualizacion = {};
+  const detalle: ProveedorNaturalMidActualizacion = {};
+  if (base.TerceroIdMaterializado !== undefined) {
+    tercero.Id = base.TerceroIdMaterializado;
+  }
+  if (base.DetalleId !== undefined) {
+    detalle.Id = base.DetalleId;
+  }
   const omisiones = [
     "DatosIdentificacion y Contacto no se modifican en PATCH para evitar duplicar identificaciones o crear contactos sin TipoCanalContactoId.",
     "La vista representa una cuenta bancaria; las cuentas adicionales consultadas no se modifican ni eliminan.",
@@ -557,7 +588,7 @@ export function mapearActualizacionPersonaNaturalMid(
     ["primerApellido", "PrimerApellido"],
     ["segundoApellido", "SegundoApellido"],
   ] as const) {
-    const valor = textoOpcional(identificacion, campoFormulario);
+    const valor = textoActualizacion(identificacion, campoFormulario);
     if (valor !== undefined) {
       tercero[campoMid] = valor;
       camposActualizados += 1;
@@ -610,14 +641,15 @@ export function mapearActualizacionPersonaNaturalMid(
     camposActualizados += 1;
   }
 
-  const descripcionPortafolioHtml = textoOpcional(
+  const descripcionPortafolioHtml = textoNullableActualizacion(
     actividad,
     "portafolioCapacidadEntrega",
   );
   // El editor enriquecido guarda HTML; el MID espera texto legible.
-  const descripcionPortafolio = descripcionPortafolioHtml
-    ? textoPlanoDesdeHtml(descripcionPortafolioHtml)
-    : undefined;
+  const descripcionPortafolio = descripcionPortafolioHtml === null
+    || descripcionPortafolioHtml === undefined
+    ? descripcionPortafolioHtml
+    : textoPlanoDesdeHtml(descripcionPortafolioHtml);
   if (descripcionPortafolio !== undefined) {
     camposActualizados += 1;
   }
@@ -647,7 +679,7 @@ export function mapearActualizacionPersonaNaturalMid(
     cuentaBancaria.TipoCuentaId = tipoCuentaId;
     camposActualizados += 1;
   }
-  const numeroCuenta = textoOpcional(finanzas, "numeroCuentaBancaria");
+  const numeroCuenta = textoActualizacion(finanzas, "numeroCuentaBancaria");
   if (numeroCuenta !== undefined) {
     cuentaBancaria.NumeroCuenta = numeroCuenta;
     camposActualizados += 1;
@@ -680,11 +712,17 @@ export function mapearActualizacionPersonaNaturalMid(
 
   const payload: ActualizarProveedorNaturalMidPayload = {
     Id: base.Id,
-    TerceroId: base.TerceroId,
     TipoProveedor: base.TipoProveedor,
-    Tercero: tercero,
-    ProveedorNatural: detalle,
   };
+  if (base.TerceroId !== undefined) {
+    payload.TerceroId = base.TerceroId;
+  }
+  if (Object.keys(tercero).length > 0) {
+    payload.Tercero = tercero;
+  }
+  if (Object.keys(detalle).length > 0) {
+    payload.ProveedorNatural = detalle;
+  }
   if (descripcionPortafolio !== undefined) {
     payload.DescripcionPortafolio = descripcionPortafolio;
   }
@@ -712,12 +750,14 @@ export function mapearActualizacionPersonaJuridicaMid(
   const formulario = registro(valorFormulario, "persona jurídica");
   const base = baseActualizacion(datosConsultados, "ProveedorJuridico");
   const cuentaConsultada = primeraRelacion(datosConsultados, "CuentaBancaria");
-  const tercero: TerceroMidActualizacion = {
-    Id: base.TerceroIdMaterializado,
-  };
-  const detalle: ProveedorJuridicoMidActualizacion = {
-    Id: base.DetalleId,
-  };
+  const tercero: TerceroMidActualizacion = {};
+  const detalle: ProveedorJuridicoMidActualizacion = {};
+  if (base.TerceroIdMaterializado !== undefined) {
+    tercero.Id = base.TerceroIdMaterializado;
+  }
+  if (base.DetalleId !== undefined) {
+    detalle.Id = base.DetalleId;
+  }
   const omisiones = [
     "DatosIdentificacion y Contacto se omiten en PATCH; no se envían propiedades documentales con equivalencia no confirmada ni contactos sin valores contractuales confirmados.",
     "La vista representa una cuenta bancaria; las cuentas adicionales consultadas no se modifican ni eliminan.",
@@ -726,7 +766,7 @@ export function mapearActualizacionPersonaJuridicaMid(
   ];
   let camposActualizados = 0;
 
-  const razonSocial = textoOpcional(formulario, "razonSocial");
+  const razonSocial = textoActualizacion(formulario, "razonSocial");
   if (razonSocial !== undefined) {
     tercero.NombreCompleto = razonSocial;
     camposActualizados += 1;
@@ -757,14 +797,15 @@ export function mapearActualizacionPersonaJuridicaMid(
     }
   }
 
-  const descripcionPortafolioHtml = textoOpcional(
+  const descripcionPortafolioHtml = textoNullableActualizacion(
     formulario,
     "descripcionServicios",
   );
   // El editor enriquecido guarda HTML; el MID espera texto legible.
-  const descripcionPortafolio = descripcionPortafolioHtml
-    ? textoPlanoDesdeHtml(descripcionPortafolioHtml)
-    : undefined;
+  const descripcionPortafolio = descripcionPortafolioHtml === null
+    || descripcionPortafolioHtml === undefined
+    ? descripcionPortafolioHtml
+    : textoPlanoDesdeHtml(descripcionPortafolioHtml);
   if (descripcionPortafolio !== undefined) {
     camposActualizados += 1;
   }
@@ -793,7 +834,7 @@ export function mapearActualizacionPersonaJuridicaMid(
     cuentaBancaria.TipoCuentaId = tipoCuentaId;
     camposActualizados += 1;
   }
-  const numeroCuenta = textoOpcional(formulario, "numeroCuenta");
+  const numeroCuenta = textoActualizacion(formulario, "numeroCuenta");
   if (numeroCuenta !== undefined) {
     cuentaBancaria.NumeroCuenta = numeroCuenta;
     camposActualizados += 1;
@@ -828,11 +869,17 @@ export function mapearActualizacionPersonaJuridicaMid(
 
   const payload: ActualizarProveedorJuridicoMidPayload = {
     Id: base.Id,
-    TerceroId: base.TerceroId,
     TipoProveedor: base.TipoProveedor,
-    Tercero: tercero,
-    ProveedorJuridico: detalle,
   };
+  if (base.TerceroId !== undefined) {
+    payload.TerceroId = base.TerceroId;
+  }
+  if (Object.keys(tercero).length > 0) {
+    payload.Tercero = tercero;
+  }
+  if (Object.keys(detalle).length > 0) {
+    payload.ProveedorJuridico = detalle;
+  }
   if (descripcionPortafolio !== undefined) {
     payload.DescripcionPortafolio = descripcionPortafolio;
   }
@@ -989,14 +1036,17 @@ export function mapearPersonaNaturalMid(
     }
   }
 
-  const primerNombre = textoRequerido(identificacion, "primerNombre");
+  const primerNombre = textoOpcional(identificacion, "primerNombre");
   const segundoNombre = textoOpcional(identificacion, "segundoNombre");
-  const primerApellido = textoRequerido(identificacion, "primerApellido");
+  const primerApellido = textoOpcional(identificacion, "primerApellido");
   const segundoApellido = textoOpcional(identificacion, "segundoApellido");
-  const tercero: TerceroMid = {
-    PrimerNombre: primerNombre,
-    PrimerApellido: primerApellido,
-  };
+  const tercero: TerceroMid = {};
+  if (primerNombre !== undefined) {
+    tercero.PrimerNombre = primerNombre;
+  }
+  if (primerApellido !== undefined) {
+    tercero.PrimerApellido = primerApellido;
+  }
   const fechaNacimiento = fechaOpcional(identificacion, "fechaNacimiento");
   if (fechaNacimiento) {
     tercero.FechaNacimiento = fechaNacimiento;
@@ -1008,18 +1058,23 @@ export function mapearPersonaNaturalMid(
     tercero.SegundoApellido = segundoApellido;
   }
 
-  const proveedorNatural: ProveedorNaturalMid = {
-    ExperienciaLaboral: entero(
-      experiencia["experienciaLaboralTotal"],
-      "ExperienciaLaboral",
-      0,
-    ),
-    ExperienciaProfesional: entero(
-      experiencia["experienciaProfesional"],
-      "ExperienciaProfesional",
-      0,
-    ),
-  };
+  const proveedorNatural: ProveedorNaturalMid = {};
+  const experienciaLaboral = enteroOpcional(
+    experiencia["experienciaLaboralTotal"],
+    "ExperienciaLaboral",
+    0,
+  );
+  if (experienciaLaboral !== undefined) {
+    proveedorNatural.ExperienciaLaboral = experienciaLaboral;
+  }
+  const experienciaProfesional = enteroOpcional(
+    experiencia["experienciaProfesional"],
+    "ExperienciaProfesional",
+    0,
+  );
+  if (experienciaProfesional !== undefined) {
+    proveedorNatural.ExperienciaProfesional = experienciaProfesional;
+  }
   const paisNacimientoId = enteroOpcional(
     identificacion["paisNacimiento"],
     "PaisNacimientoId",
@@ -1055,16 +1110,19 @@ export function mapearPersonaNaturalMid(
     "TipoContribuyenteId omitido: no se confirmó una fuente autorizada y el formulario no recopila este identificador.",
     "Los campos de pasos posteriores no se incluyen en el POST inicial.",
   ];
-  const payload: NuevoProveedorNaturalMidPayload = {
-    Tercero: tercero,
-    ProveedorNatural: proveedorNatural,
-  };
   if (datosDocumento) {
-    payload.Tercero.DatosIdentificacion = [datosDocumento];
+    tercero.DatosIdentificacion = [datosDocumento];
   } else {
     omisiones.push(
       "DatosIdentificacion omitidos: el contrato permite omitir la relación y no se construye con una clave natural incompleta.",
     );
+  }
+  const payload: NuevoProveedorNaturalMidPayload = {};
+  if (Object.keys(tercero).length > 0) {
+    payload.Tercero = tercero;
+  }
+  if (Object.keys(proveedorNatural).length > 0) {
+    payload.ProveedorNatural = proveedorNatural;
   }
   const actividades = actividadesNuevas(
     actividad["actividadesCiiu"],
@@ -1088,9 +1146,11 @@ export function mapearPersonaJuridicaMid(
     "Los campos de pasos posteriores no se incluyen en el POST inicial.",
   ];
 
-  const tercero: TerceroMid = {
-    NombreCompleto: textoRequerido(formulario, "razonSocial"),
-  };
+  const tercero: TerceroMid = {};
+  const razonSocial = textoOpcional(formulario, "razonSocial");
+  if (razonSocial !== undefined) {
+    tercero.NombreCompleto = razonSocial;
+  }
   const numeroNit = textoOpcional(formulario, "nit");
   if (numeroNit) {
     const documento: DatosIdentificacionMid = { Numero: numeroNit };
@@ -1140,10 +1200,13 @@ export function mapearPersonaJuridicaMid(
     }
   }
 
-  const payload: NuevoProveedorJuridicoMidPayload = {
-    Tercero: tercero,
-    ProveedorJuridico: proveedorJuridico,
-  };
+  const payload: NuevoProveedorJuridicoMidPayload = {};
+  if (Object.keys(tercero).length > 0) {
+    payload.Tercero = tercero;
+  }
+  if (Object.keys(proveedorJuridico).length > 0) {
+    payload.ProveedorJuridico = proveedorJuridico;
+  }
   const actividades = actividadesNuevas(
     formulario["actividadesCiiu"],
     {},

@@ -947,6 +947,18 @@ export class RegistroPersonaNaturalComponent implements OnInit {
       });
   }
 
+  private conservarProveedorActualEnRuta(id: number): void {
+      if (this.route.snapshot.queryParamMap.get("id") === String(id)) {
+        return;
+      }
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { id },
+        queryParamsHandling: "merge",
+        replaceUrl: true,
+      });
+  }
+
   // =========================================================
   // PASO 3 - DOCUMENTOS
   // =========================================================
@@ -961,6 +973,7 @@ export class RegistroPersonaNaturalComponent implements OnInit {
     }
     if (!this.validarPasoActual()) {
       this.marcarPasoActualComoTouched();
+      this.guardarPasoActual(false);
       return;
     }
 
@@ -975,12 +988,28 @@ export class RegistroPersonaNaturalComponent implements OnInit {
     }
     if (this.personaNaturalForm.invalid) {
       this.personaNaturalForm.markAllAsTouched();
-      this.estadoMensaje = "No se puede finalizar el registro";
-      this.estadoDetalle = "Revise los campos obligatorios del formulario.";
-      return;
     }
 
     this.guardarPasoActual(false);
+  }
+
+  private valoresModificados(
+    nombreGrupo: string,
+    campos: readonly string[],
+  ): Record<string, unknown> {
+    const grupo = this.personaNaturalForm.get(nombreGrupo);
+    if (!(grupo instanceof FormGroup)) {
+      return {};
+    }
+
+    const cambios: Record<string, unknown> = {};
+    for (const campo of campos) {
+      const control = grupo.get(campo);
+      if (control?.dirty) {
+        cambios[campo] = control.value;
+      }
+    }
+    return cambios;
   }
 
   private guardarPasoActual(avanzar: boolean): void {
@@ -1028,29 +1057,51 @@ export class RegistroPersonaNaturalComponent implements OnInit {
             "Consulte el estado del registro en el MID antes de continuar.";
           return;
         }
-        const valor = this.personaNaturalForm.getRawValue();
         const formularioPaso = {
-          identificacion: this.currentStep === 1 ? valor.identificacion : {},
-          experiencia: this.currentStep === 1 ? valor.experiencia : {},
-          afiliacionesFinanzas:
-            this.currentStep === 2 ? valor.afiliacionesFinanzas : {},
-          actividadDeclaracion:
-            this.currentStep === 4 ? valor.actividadDeclaracion : {},
+          identificacion: this.currentStep === 1
+            ? this.valoresModificados("identificacion", [
+              "primerNombre",
+              "segundoNombre",
+              "primerApellido",
+              "segundoApellido",
+              "fechaNacimiento",
+              "paisNacimiento",
+            ])
+            : {},
+          experiencia: this.currentStep === 1
+            ? this.valoresModificados("experiencia", [
+              "experienciaLaboralTotal",
+              "experienciaProfesional",
+            ])
+            : {},
+          tributario: this.currentStep === 1
+            ? this.valoresModificados("tributario", [
+              "medicinaPrepagada",
+              "responsableIva",
+              "resideFiscalmenteColombia",
+              "aportesPensionVoluntaria",
+            ])
+            : {},
+          afiliacionesFinanzas: this.currentStep === 2
+            ? this.valoresModificados("afiliacionesFinanzas", [
+              "pensionadoAsignacionRetiro",
+              "entidadBancaria",
+              "tipoCuenta",
+              "numeroCuentaBancaria",
+              "capitalAutorizadoPatrimonio",
+            ])
+            : {},
+          actividadDeclaracion: this.currentStep === 4
+            ? this.valoresModificados("actividadDeclaracion", [
+              "actividadesCiiu",
+              "portafolioCapacidadEntrega",
+            ])
+            : {},
         };
         const mapeo = mapearActualizacionPersonaNaturalMid(
           formularioPaso,
           this.proveedorPersistido,
         );
-        if (this.currentStep === 2) {
-          mapeo.omisiones.push(
-            "Afiliaciones, información financiera y contacto de tesorería no se enviaron: el MID no declara esos nodos como escribibles.",
-          );
-        }
-        if (this.currentStep === 4) {
-          mapeo.omisiones.push(
-            "Actividades CIIU y consentimiento no se enviaron: el MID no declara esos nodos como escribibles.",
-          );
-        }
         solicitud = this.gestionPersonasMidService.actualizarPersonaNatural(
           mapeo.payload,
         );
@@ -1084,6 +1135,9 @@ export class RegistroPersonaNaturalComponent implements OnInit {
           this.guardando = false;
           this.envioIndeterminado = true;
           this.proveedorMidId = resultado.proveedorId ?? this.proveedorMidId;
+          if (this.proveedorMidId !== undefined) {
+            this.conservarProveedorActualEnRuta(this.proveedorMidId);
+          }
           this.estadoMensaje = resultado.mensaje;
           this.estadoDetalle = resultado.detalle;
           return;
@@ -1099,6 +1153,7 @@ export class RegistroPersonaNaturalComponent implements OnInit {
           return;
         }
         this.proveedorMidId = id;
+        this.conservarProveedorActualEnRuta(id);
         this.registroParcial = this.registroParcial
           || omisiones.length > 0
           || resultado.tipo === "partial";

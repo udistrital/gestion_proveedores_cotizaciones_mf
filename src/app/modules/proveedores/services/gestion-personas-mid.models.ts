@@ -78,8 +78,8 @@ export interface ProveedorJuridicoMid {
 }
 
 interface ProveedorMidBase {
-  DescripcionPortafolio?: string;
-  Tercero: TerceroMid;
+  DescripcionPortafolio?: string | null;
+  Tercero?: TerceroMid;
   Contacto?: ContactoMid[];
   CuentaBancaria?: CuentaBancariaMid[];
   ActividadEconomicaProveedor?: Array<{
@@ -90,12 +90,12 @@ interface ProveedorMidBase {
 
 export interface ProveedorNaturalMidRequest extends ProveedorMidBase {
   TipoProveedor: number;
-  ProveedorNatural: ProveedorNaturalMid;
+  ProveedorNatural?: ProveedorNaturalMid;
 }
 
 export interface ProveedorJuridicoMidRequest extends ProveedorMidBase {
   TipoProveedor: number;
-  ProveedorJuridico: ProveedorJuridicoMid;
+  ProveedorJuridico?: ProveedorJuridicoMid;
 }
 
 export type NuevoProveedorNaturalMidPayload = Omit<
@@ -114,7 +114,7 @@ export interface ConsultaProveedorMidRequest {
 }
 
 export interface TerceroMidActualizacion extends TerceroMid {
-  Id: number;
+  Id?: number;
 }
 
 export interface CuentaBancariaMidActualizacion extends CuentaBancariaMid {
@@ -123,20 +123,20 @@ export interface CuentaBancariaMidActualizacion extends CuentaBancariaMid {
 
 export interface ProveedorNaturalMidActualizacion
   extends ProveedorNaturalMid {
-  Id: number;
+  Id?: number;
 }
 
 export interface ProveedorJuridicoMidActualizacion
   extends ProveedorJuridicoMid {
-  Id: number;
+  Id?: number;
 }
 
 interface ActualizacionProveedorMidBase {
   Id: number;
-  TerceroId: number;
+  TerceroId?: number;
   TipoProveedor: number;
-  Tercero: TerceroMidActualizacion;
-  DescripcionPortafolio?: string;
+  Tercero?: TerceroMidActualizacion;
+  DescripcionPortafolio?: string | null;
   CuentaBancaria?: CuentaBancariaMidActualizacion[];
   ActividadEconomicaProveedor?: Array<{
     ActividadEconomicaId: number;
@@ -146,12 +146,12 @@ interface ActualizacionProveedorMidBase {
 
 export interface ActualizarProveedorNaturalMidPayload
   extends ActualizacionProveedorMidBase {
-  ProveedorNatural: ProveedorNaturalMidActualizacion;
+  ProveedorNatural?: ProveedorNaturalMidActualizacion;
 }
 
 export interface ActualizarProveedorJuridicoMidPayload
   extends ActualizacionProveedorMidBase {
-  ProveedorJuridico: ProveedorJuridicoMidActualizacion;
+  ProveedorJuridico?: ProveedorJuridicoMidActualizacion;
 }
 
 export interface ErrorMaterializacionMid {
