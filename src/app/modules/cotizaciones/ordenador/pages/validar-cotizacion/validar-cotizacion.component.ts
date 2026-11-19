@@ -351,7 +351,7 @@ export class ValidarCotizacionComponent implements OnInit {
     if (solicitud) {
       void this.router.navigate([
         "/cotizaciones",
-        "validacion",
+        "bandeja-validacion",
         solicitud.id,
         "resultado",
       ]);
@@ -387,6 +387,20 @@ export class ValidarCotizacionComponent implements OnInit {
         "historial",
       ]);
     }
+  }
+
+  /** O-04: la solicitud tiene una modificación pendiente de decisión. */
+  abrirModificacion(): void {
+    const radicado = this.solicitud()?.modificacionPendiente?.radicado;
+    if (!radicado) {
+      return;
+    }
+    void this.router.navigate([
+      "/cotizaciones",
+      "bandeja-validacion",
+      "modificaciones-pendientes",
+      radicado,
+    ]);
   }
 
   abrirDetalle(vista: VistaDetalleOferta): void {

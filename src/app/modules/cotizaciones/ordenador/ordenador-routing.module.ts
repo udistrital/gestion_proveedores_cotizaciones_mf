@@ -1,7 +1,8 @@
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
+import { BandejaModificacionesComponent } from "./pages/bandeja-modificaciones/bandeja-modificaciones.component";
 import { BandejaValidacionComponent } from "./pages/bandeja-validacion/bandeja-validacion.component";
-import { PantallaOrdenadorPlaceholderComponent } from "./pages/pantalla-proximamente/pantalla-ordenador-placeholder.component";
+import { DecidirModificacionComponent } from "./pages/decidir-modificacion/decidir-modificacion.component";
 import { ResultadoValidacionComponent } from "./pages/resultado-validacion/resultado-validacion.component";
 import { ValidarCotizacionComponent } from "./pages/validar-cotizacion/validar-cotizacion.component";
 import { resultadoValidacionResolver } from "./resolvers/resultado-validacion.resolver";
@@ -9,8 +10,8 @@ import { resultadoValidacionResolver } from "./resolvers/resultado-validacion.re
 /**
  * Rutas del área del Ordenador del Gasto (O-01 a O-04).
  *
- * El módulo se monta en `cotizaciones/bandeja-validacion` (RN-32). Los literales van
- * antes de `:id` para que la bandeja de modificaciones no sea capturada por
+ * El módulo se monta en `cotizaciones/bandeja-validacion` (RN-32). Los literales
+ * van antes de `:id` para que la bandeja de modificaciones no sea capturada por
  * una ruta de detalle.
  */
 const routes: Routes = [
@@ -21,21 +22,13 @@ const routes: Routes = [
   },
   {
     path: "modificaciones-pendientes",
-    component: PantallaOrdenadorPlaceholderComponent,
+    component: BandejaModificacionesComponent,
     title: "ÁGORA · Modificaciones por aprobar",
-    data: {
-      titulo: "Modificaciones por aprobar",
-      pantalla: "O-04",
-    },
   },
   {
     path: "modificaciones-pendientes/:id",
-    component: PantallaOrdenadorPlaceholderComponent,
+    component: DecidirModificacionComponent,
     title: "ÁGORA · Decidir modificación",
-    data: {
-      titulo: "Decidir modificación",
-      pantalla: "O-04",
-    },
   },
   {
     path: ":id/resultado",

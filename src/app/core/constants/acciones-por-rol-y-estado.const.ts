@@ -26,11 +26,13 @@ import {
   AccionDetalleProveedor,
   AccionEstudioMercado,
   AccionInvitacionProveedor,
+  AccionModificacion,
   AccionOferente,
   AccionSolicitud,
   AccionSubsanacion,
   AccionValidacion,
   EstadoEstudioMercado,
+  EstadoModificacionOrdenador,
   EstadoOferente,
   EstadoPostulacionProveedor,
   EstadoSolicitud,
@@ -88,6 +90,11 @@ export type AccionesEstudioMercadoPorRolYEstado = AccionesPorRolYEstado<
 export type AccionesValidacionPorRolYEstado = AccionesPorRolYEstado<
   EstadoValidacionOrdenador,
   AccionValidacion
+>;
+
+export type AccionesModificacionPorRolYEstado = AccionesPorRolYEstado<
+  EstadoModificacionOrdenador,
+  AccionModificacion
 >;
 
 /**
@@ -432,6 +439,28 @@ export const ACCIONES_VALIDACION_POR_ROL_Y_ESTADO: AccionesValidacionPorRolYEsta
     [environment.ROL.ORDENADOR_DEL_GASTO]: ACCIONES_VALIDACION_OG,
   };
 
+/* ─────────── Modificaciones por aprobar (O-04) ─────────── */
+
+/**
+ * Acciones de una fila de modificaciones por aprobar.
+ *
+ * RN-32: solo el Ordenador del Gasto. RN-35 (una sola respuesta) se expresa no
+ * ofreciendo `decidir` en los estados ya resueltos: la vista no decide por
+ * estado ni por rol, solo consulta la matriz.
+ */
+const ACCIONES_MODIFICACION_OG: Partial<
+  Record<EstadoModificacionOrdenador, readonly AccionModificacion[]>
+> = {
+  "por-aprobar": ["ver-proceso", "decidir"],
+  aprobada: ["ver-proceso", "ver-resolucion"],
+  rechazada: ["ver-proceso", "ver-resolucion"],
+};
+
+export const ACCIONES_MODIFICACION_POR_ROL_Y_ESTADO: AccionesModificacionPorRolYEstado =
+  {
+    [environment.ROL.ORDENADOR_DEL_GASTO]: ACCIONES_MODIFICACION_OG,
+  };
+
 
 /* ─────────────────────────────── Helpers ─────────────────────────────── */
 
@@ -523,6 +552,17 @@ export function accionesValidacionPorRoles(
 ): readonly AccionValidacion[] {
   const acciones = roles.flatMap(
     (rol) => ACCIONES_VALIDACION_POR_ROL_Y_ESTADO[rol]?.[estado] ?? [],
+  );
+  return Array.from(new Set(acciones));
+}
+
+/** Acciones de una modificación en un estado, uniendo todos los roles. */
+export function accionesModificacionPorRoles(
+  roles: readonly Rol[],
+  estado: EstadoModificacionOrdenador,
+): readonly AccionModificacion[] {
+  const acciones = roles.flatMap(
+    (rol) => ACCIONES_MODIFICACION_POR_ROL_Y_ESTADO[rol]?.[estado] ?? [],
   );
   return Array.from(new Set(acciones));
 }

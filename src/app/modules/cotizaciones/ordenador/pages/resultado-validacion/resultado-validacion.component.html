@@ -131,6 +131,12 @@
                 <mat-icon aria-hidden="true">arrow_back</mat-icon>
                 <span>Volver a pendientes</span>
               </button>
+              @if (s.modificacionPendiente?.radicado) {
+                <button class="boton-recto" type="button" (click)="abrirModificacion()">
+                  <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+                  <span>Modificación pendiente</span>
+                </button>
+              }
               @if (vista() !== "no-disponible") {
                 <button class="boton-recto" type="button" (click)="abrirComparador()">
                   <mat-icon aria-hidden="true">balance</mat-icon>

@@ -358,7 +358,7 @@ export class BandejaValidacionComponent implements OnInit {
   abrirModificaciones(): void {
     void this.router.navigate([
       "/cotizaciones",
-      "validacion",
+      "bandeja-validacion",
       "modificaciones-pendientes",
     ]);
   }

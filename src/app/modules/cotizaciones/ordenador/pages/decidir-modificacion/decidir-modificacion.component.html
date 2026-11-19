@@ -1,0 +1,420 @@
+<plantilla-pagina-contenedora
+  [breadcrumb]="breadcrumb"
+  title="Decidir solicitud de modificación"
+  [mostrarBotonRegresar]="true"
+  (regresar)="volver()"
+>
+  <section class="decidir" aria-label="Decisión de la solicitud de modificación">
+    <p class="decidir__anuncio" aria-live="polite">{{ anuncio() }}</p>
+
+    @if (vista() === "cargando") {
+      <div class="decidir__esqueleto" aria-busy="true" aria-live="polite">
+        <span class="visually-oculto">Cargando la modificación…</span>
+        <div class="esqueleto esqueleto--cabecera"></div>
+        <div class="esqueleto esqueleto--franja"></div>
+        @for (bloque of [1, 2, 3]; track bloque) {
+          <div class="esqueleto esqueleto--tarjeta"></div>
+        }
+      </div>
+    } @else if (vista() === "error") {
+      <section class="decidir__estado decidir__estado--error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <h2>No pudimos cargar la modificación</h2>
+        <p>
+          {{
+            mensajeError() ||
+              "Ocurrió un problema al consultar el expediente. Intente nuevamente."
+          }}
+        </p>
+        <div class="decidir__estado-acciones">
+          <button class="boton-recto boton-recto--vino" type="button" (click)="reintentar()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            <span>Reintentar</span>
+          </button>
+          <button class="boton-recto" type="button" (click)="volver()">
+            <mat-icon aria-hidden="true">arrow_back</mat-icon>
+            <span>Volver a modificaciones</span>
+          </button>
+        </div>
+      </section>
+    } @else if (vista() === "no-encontrada") {
+      <section class="decidir__estado" role="status">
+        <mat-icon aria-hidden="true">search_off</mat-icon>
+        <h2>Modificación no encontrada</h2>
+        <p>
+          No existe una modificación con ese radicado o ya no está disponible
+          para el ordenador del gasto.
+        </p>
+        <button class="boton-recto" type="button" (click)="volver()">
+          <mat-icon aria-hidden="true">arrow_back</mat-icon>
+          <span>Volver a modificaciones por aprobar</span>
+        </button>
+      </section>
+    } @else if (vista() === "sin-acceso") {
+      <section class="decidir__estado" role="status">
+        <mat-icon aria-hidden="true">lock</mat-icon>
+        <h2>Sin acceso a esta modificación</h2>
+        <p>
+          La solicitud está asignada a otro despacho del ordenador del gasto
+          (RN-02). Solo el despacho competente puede decidirla.
+        </p>
+        <button class="boton-recto" type="button" (click)="volver()">
+          <mat-icon aria-hidden="true">arrow_back</mat-icon>
+          <span>Volver a modificaciones por aprobar</span>
+        </button>
+      </section>
+    } @else if (vista() === "sin-permiso") {
+      <section class="decidir__estado" role="status">
+        <mat-icon aria-hidden="true">admin_panel_settings</mat-icon>
+        <h2>Acceso restringido al Ordenador del Gasto</h2>
+        <p>
+          Las modificaciones por aprobar son competencia exclusiva del rol
+          Ordenador del Gasto (RN-32).
+        </p>
+        <button class="boton-recto" type="button" (click)="volver()">
+          <mat-icon aria-hidden="true">arrow_back</mat-icon>
+          <span>Volver</span>
+        </button>
+      </section>
+    } @else if (solicitud(); as s) {
+      @if (modificacion(); as m) {
+        <!-- ───────────────────────── Cabecera ───────────────────────── -->
+        <header class="decidir__cabecera">
+          <div class="decidir__cabecera-principal">
+            <div class="decidir__textos">
+              <div class="decidir__chips">
+                <span class="chip chip--recto">
+                  <mat-icon aria-hidden="true">drafts</mat-icon>
+                  <span>{{ m.radicado }}</span>
+                </span>
+                <chip-estado [estado]="m.estado" />
+                <span class="chip chip--recto">
+                  <span class="decidir__chip-etiqueta">Solicitud</span>
+                  <span>{{ s.id }}</span>
+                </span>
+                <span class="chip chip--recto">
+                  <span class="decidir__chip-etiqueta">Vigencia</span>
+                  <span>{{ s.vigencia }}</span>
+                </span>
+              </div>
+
+              <p class="decidir__objeto">{{ s.titulo }}</p>
+              <p class="decidir__descripcion">
+                Revise el cuadro comparativo y la sustentación del área técnica
+                antes de emitir el acto de aprobación o rechazo. La decisión es
+                única y definitiva.
+              </p>
+
+              <div class="decidir__meta">
+                <span class="decidir__dato">
+                  <mat-icon aria-hidden="true">domain</mat-icon>
+                  <span>{{ s.dependencia }}</span>
+                </span>
+                <span class="decidir__dato">
+                  <mat-icon aria-hidden="true">event_busy</mat-icon>
+                  <span>
+                    Cierre vigente:
+                    <strong>{{ cierreActual }}</strong>
+                  </span>
+                </span>
+                <span class="decidir__dato">
+                  <mat-icon aria-hidden="true">gavel</mat-icon>
+                  <span>
+                    Radicada el
+                    <strong>{{ m.propuesta.solicitadaEl }}</strong>
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div class="decidir__acciones-cabecera">
+              <button class="boton-recto" type="button" (click)="abrirHistorial()">
+                <mat-icon aria-hidden="true">history</mat-icon>
+                <span>Ver historial</span>
+              </button>
+              <button class="boton-recto" type="button" (click)="verExpediente()">
+                <mat-icon aria-hidden="true">folder_open</mat-icon>
+                <span>Ver expediente</span>
+              </button>
+              <button class="boton-recto" type="button" (click)="volver()">
+                <mat-icon aria-hidden="true">arrow_back</mat-icon>
+                <span>Volver a modificaciones</span>
+              </button>
+            </div>
+          </div>
+
+          <linea-estados
+            [pasos]="pasos()"
+            label="Etapa del trámite de la modificación"
+          ></linea-estados>
+        </header>
+
+        @if (mismoUsuario()) {
+          <aside class="decidir__aviso decidir__aviso--advertencia" role="status">
+            <mat-icon aria-hidden="true">warning</mat-icon>
+            <div>
+              <strong>Segregación de funciones</strong>
+              <p>
+                La propuesta la radicó el mismo despacho que debe decidirla. Se
+                recomienda verificar la independencia del acto.
+              </p>
+              <etiqueta-por-definir
+                texto="Auto-aprobación por competencia originaria"
+                detalle="el mockup la menciona, pero no está reglamentada; esta vista solo advierte"
+              ></etiqueta-por-definir>
+            </div>
+          </aside>
+        }
+
+        @if (vista() === "decidida") {
+          <app-resolucion-modificacion
+            [modificacion]="m"
+          ></app-resolucion-modificacion>
+        }
+
+        <!-- ───────────────── Card 1: datos de la solicitud ───────────── -->
+        <tarjeta-seccion
+          icono="folder_open"
+          titulo="Datos generales de la solicitud"
+          subtitulo="Información contractual consolidada en el expediente electrónico"
+        >
+          <ng-container acciones>
+            <span class="chip chip--recto">
+              <mat-icon aria-hidden="true">lock</mat-icon>
+              <span>Solo lectura</span>
+            </span>
+          </ng-container>
+
+          <div class="decidir__objeto-bloque">
+            <span class="campo__etiqueta">Objeto del proceso de contratación</span>
+            <p>{{ s.titulo }}</p>
+          </div>
+
+          <div class="datos-grid datos-grid--tres">
+            <par-etiqueta-valor
+              etiqueta="Número de cotización"
+              [valor]="s.id"
+              icono="tag"
+            />
+            <par-etiqueta-valor
+              etiqueta="Vigencia fiscal"
+              [valor]="s.vigencia + ' - Vigente'"
+              icono="calendar_today"
+            />
+            <par-etiqueta-valor
+              etiqueta="Ordenador del gasto competente"
+              [valor]="ordenadorCompetente"
+              icono="gavel"
+            />
+            <par-etiqueta-valor
+              etiqueta="Responsable solicitante"
+              [valor]="responsable"
+              icono="person"
+            />
+            <par-etiqueta-valor
+              etiqueta="Identificación oficial"
+              [valor]="identificacion"
+              icono="badge"
+            />
+            <par-etiqueta-valor
+              etiqueta="Dependencia solicitante"
+              [valor]="s.dependencia"
+              icono="domain"
+            />
+            <par-etiqueta-valor
+              etiqueta="Unidad ejecutora"
+              [valor]="unidadEjecutora"
+              icono="account_balance"
+            />
+            <par-etiqueta-valor
+              etiqueta="Versión vigente del expediente"
+              [valor]="s.version ?? m.versionAnterior"
+              icono="history"
+            />
+            <par-etiqueta-valor
+              etiqueta="Fecha de cierre vigente"
+              [valor]="cierreActual"
+              icono="event_busy"
+            />
+          </div>
+        </tarjeta-seccion>
+
+        <!-- ───────────────── Card 2: sustentación ───────────────────── -->
+        <tarjeta-seccion
+          icono="history_edu"
+          titulo="Motivación y sustentación técnica"
+          subtitulo="Radicación formal presentada por el área técnica solicitante"
+        >
+          <ng-container acciones>
+            <span class="chip chip--recto">
+              <mat-icon aria-hidden="true">schedule</mat-icon>
+              <span>{{ m.propuesta.solicitadaEl }}</span>
+            </span>
+          </ng-container>
+
+          <div class="decidir__sustentacion">
+            <div class="decidir__sustentacion-autor">
+              <span>
+                <mat-icon aria-hidden="true">person</mat-icon>
+                <strong>{{ m.propuesta.solicitadaPor }}</strong>
+              </span>
+            </div>
+            <p class="decidir__justificacion">
+              {{ m.propuesta.justificacion }}
+            </p>
+          </div>
+        </tarjeta-seccion>
+
+        <!-- ───────────────── Card 3: comparativo ────────────────────── -->
+        <tarjeta-seccion
+          icono="compare"
+          titulo="Qué cambia entre la versión vigente y la propuesta"
+          subtitulo="Diferenciales de ítems y fecha de cierre propuestos para la adenda"
+        >
+          <ng-container acciones>
+            @if (cambiaItems) {
+              <span class="chip chip--recto">
+                <mat-icon aria-hidden="true">inventory_2</mat-icon>
+                <span>Ítems ({{ m.cambiosItems }})</span>
+              </span>
+            }
+            @if (cambiaCierre) {
+              <span class="chip chip--recto">
+                <mat-icon aria-hidden="true">event_repeat</mat-icon>
+                <span>Fecha de cierre</span>
+              </span>
+            }
+          </ng-container>
+
+          @if (cambiaCierre) {
+            <div class="decidir__cierre">
+              <div class="decidir__cierre-carta">
+                <span class="decidir__cierre-rotulo">Cierre actual (antes)</span>
+                <strong>{{ cierreActual }}</strong>
+              </div>
+              <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+              <div class="decidir__cierre-carta decidir__cierre-carta--nueva">
+                <span class="decidir__cierre-rotulo">Cierre propuesto (después)</span>
+                <strong>{{ cierrePropuesto }}</strong>
+              </div>
+            </div>
+          }
+
+          <resumen-diferencias
+            [diferencias]="m.diferencias"
+            modo="restringida"
+            titulo="Cuadro comparativo estructurado"
+            descripcionPersonalizada="Solo se listan los ítems y la fecha de cierre: el resto del expediente viaja sin cambios (RN-30)."
+            variante="tabla"
+            [mostrarPaso]="false"
+            sustantivo="cambio"
+            [publicadoEl]="m.propuesta.solicitadaEl"
+            [motivo]="m.propuesta.justificacion"
+          ></resumen-diferencias>
+        </tarjeta-seccion>
+
+        <!-- ───────────────── Card 4: impacto ────────────────────────── -->
+        <section class="decidir__impacto" aria-labelledby="impacto-titulo">
+          <span class="decidir__impacto-icono" aria-hidden="true">
+            <mat-icon>groups</mat-icon>
+          </span>
+          <div>
+            <h2 id="impacto-titulo">Impacto sobre los oferentes</h2>
+            <p>
+              @if (notificados > 0) {
+                {{ notificados }}
+                {{ notificados === 1 ? "cotización recibida" : "cotizaciones recibidas" }}.
+                Al aprobarse la adenda, los proponentes habilitados podrán
+                actualizar su respuesta en «Modificar respuesta» antes del
+                nuevo cierre.
+              } @else {
+                Esta solicitud no registra cotizaciones recibidas; la adenda se
+                publicaría sin actualización de respuestas.
+              }
+            </p>
+          </div>
+        </section>
+
+        <!-- ───────────────── Card 5: resolución ─────────────────────── -->
+        @if (vista() === "pendiente" && estadoChip() === "por-aprobar") {
+          <app-ficha-decision-modificacion
+            #ficha
+            [modificacion]="m"
+            [notificados]="notificados"
+            (actualizada)="alDecidir($event)"
+          ></app-ficha-decision-modificacion>
+        }
+
+        <aside class="decidir__aviso" role="note">
+          <mat-icon aria-hidden="true">gavel</mat-icon>
+          <div>
+            <strong>Aviso normativo y de trazabilidad institucional</strong>
+            <p>
+              Solo se permite decidir una vez. La decisión genera un acto
+              administrativo inmutable y trazable en el expediente digital de
+              contratación.
+            </p>
+          </div>
+        </aside>
+
+        <!-- ───────────────── Dock ───────────────────────────────────── -->
+        <footer class="decidir__dock" aria-label="Acciones de la modificación">
+          <div class="decidir__dock-textos">
+            <span class="decidir__dock-titulo">
+              <mat-icon aria-hidden="true">gavel</mat-icon>
+              <span>Veredicto Ordenador del Gasto</span>
+            </span>
+            <span class="decidir__dock-nota">
+              Etapa 3 de 3 ·
+              {{
+                vista() === "decidida"
+                  ? "Decisión registrada en modo lectura"
+                  : "Competencia exclusiva del despacho del ordenador"
+              }}
+            </span>
+
+            @if (vista() !== "decidida") {
+              <span
+                class="decidir__dock-resumen"
+                [class.decidir__dock-resumen--exito]="resumenDecision.tono === 'exito'"
+                [class.decidir__dock-resumen--error]="resumenDecision.tono === 'error'"
+                aria-live="polite"
+              >
+                <mat-icon aria-hidden="true">
+                  {{ resumenDecision.tono === "error" ? "error_outline" : "info" }}
+                </mat-icon>
+                <span>{{ resumenDecision.texto }}</span>
+              </span>
+            }
+          </div>
+
+          <div class="decidir__dock-acciones">
+            @if (vista() === "decidida") {
+              <button class="boton-recto" type="button" (click)="verExpediente()">
+                <mat-icon aria-hidden="true">folder_open</mat-icon>
+                <span>Ver expediente</span>
+              </button>
+              <button class="boton-recto boton-recto--vino" type="button" (click)="volver()">
+                <mat-icon aria-hidden="true">arrow_back</mat-icon>
+                <span>Volver a modificaciones</span>
+              </button>
+            } @else {
+              <button class="boton-recto" type="button" (click)="volver()">
+                Cancelar
+              </button>
+              <button
+                class="boton-recto boton-recto--vino"
+                type="button"
+                [disabled]="!puedeConfirmar"
+                (click)="confirmar()"
+              >
+                <mat-icon aria-hidden="true">how_to_reg</mat-icon>
+                <span>Registrar decisión</span>
+              </button>
+            }
+          </div>
+        </footer>
+      }
+    }
+  </section>
+</plantilla-pagina-contenedora>

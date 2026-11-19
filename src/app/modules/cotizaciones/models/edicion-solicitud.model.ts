@@ -95,17 +95,59 @@ export interface ContextoEdicionSolicitud {
   readonly valores: DatosEdicionSolicitud;
 }
 
-/** Modificación restringida pendiente de aprobación (S-08). */
+/** Modificación restringida pendiente de aprobación (S-08/O-04). */
 export interface ModificacionPendiente {
+  /** Radicado de la modificación ("MOD-2026-0041"). */
+  readonly radicado?: string;
   readonly version: string;
   readonly revision: number;
+  /** Versión publicada del expediente al radicar la propuesta. */
+  readonly versionAnterior?: string;
   readonly solicitadaEl: string;
   readonly solicitadaPor: string;
   readonly cambios: number;
+  /** Estado al que vuelve la solicitud si la modificación se rechaza. */
+  readonly estadoAnterior?: EstadoSolicitud;
   /** Justificación registrada por quien radicó la propuesta (S-04). */
   readonly justificacion: string;
   /** Propuesta que se aplicará cuando el aprobador la acepte. */
   readonly valores: DatosEdicionSolicitud;
+}
+
+/** Decisión definitiva del Ordenador del Gasto sobre una modificación (O-04). */
+export interface DecisionModificacion {
+  readonly resultado: "aprobada" | "rechazada";
+  /** Texto plano normalizado (sin etiquetas HTML). */
+  readonly justificacion: string;
+  /** HTML sanitizado del editor, para la vista de solo lectura. */
+  readonly justificacionHtml: string;
+  readonly usuario: string;
+  readonly autor: string;
+  readonly rol: string;
+  /** Fecha visible `dd/MM/yyyy HH:mm COT`. */
+  readonly fecha: string;
+  readonly fechaIso: string;
+  readonly versionAnterior: string;
+  readonly versionVigente: string;
+  readonly cierreAnterior: string | null;
+  readonly cierreVigente: string | null;
+  /** true si la propuesta cambió ítems (RN-25). */
+  readonly itemsModificados: boolean;
+  /** Destinatarios de la notificación simulada (RF-13, provisional). */
+  readonly notificados: number;
+}
+
+/**
+ * Modificación ya resuelta por el Ordenador del Gasto.
+ *
+ * Conserva la propuesta y una fotografía de sus diferencias para que la vista
+ * de solo lectura no dependa de la versión vigente del expediente (RN-08).
+ */
+export interface ModificacionResuelta extends ModificacionPendiente {
+  readonly estado: "aprobada" | "rechazada";
+  readonly decision: DecisionModificacion;
+  readonly diferencias: ResumenDiferencias;
+  readonly resueltaEl: string;
 }
 
 /** Cambio puntual de un campo, con su paso de origen. */

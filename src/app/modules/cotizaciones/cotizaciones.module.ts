@@ -16,6 +16,10 @@ import {
   EvaluacionService,
   EvaluacionServiceMock,
 } from "./services/evaluacion.service";
+import {
+  ModificacionesService,
+  ModificacionesServiceMock,
+} from "./services/modificaciones.service";
 import { EntradaCotizacionesComponent } from "./pages/entrada-cotizaciones/entrada-cotizaciones.component";
 import {
   RespuestaProveedorService,
@@ -34,6 +38,11 @@ import {
     // Único punto de enlace del trámite de decisión (S-11) y de la validación
     // final (O-03).
     { provide: EvaluacionService, useClass: EvaluacionServiceMock },
+    // Único punto de enlace de las modificaciones por aprobar (O-04).
+    {
+      provide: ModificacionesService,
+      useClass: ModificacionesServiceMock,
+    },
     { provide: ObservacionesService, useClass: ObservacionesServiceMock },
     {
       provide: RespuestaProveedorService,

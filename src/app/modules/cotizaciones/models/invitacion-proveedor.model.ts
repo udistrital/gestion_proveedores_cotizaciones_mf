@@ -61,6 +61,15 @@ export interface InvitacionProveedor {
     readonly motivo?: string;
     readonly cierreAnterior?: string;
     readonly cierreVigente?: string;
+    /**
+     * Fotografía de los cambios aprobados (O-04).
+     *
+     * La usan P-02/P-05 para mostrar exactamente lo que decidió el Ordenador
+     * del Gasto; en las adendas antiguas se recalcula con el fixture.
+     */
+    readonly diferencias?: ResumenDiferencias;
+    /** Ítems de la versión anterior, para la comparativa de P-05. */
+    readonly itemsAnteriores?: readonly ItemSolicitud[];
   };
 }
 

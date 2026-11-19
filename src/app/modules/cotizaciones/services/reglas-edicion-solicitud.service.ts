@@ -114,7 +114,7 @@ export class ReglasEdicionSolicitudService {
   motivoBloqueo(estado: EstadoSolicitud): string {
     switch (estado) {
       case "en-aprobacion":
-        return "La solicitud tiene una modificación en aprobación. Podrá editarla cuando la Oficina de Contratación resuelva la solicitud.";
+        return "La solicitud tiene una modificación en aprobación. Podrá editarla cuando el Ordenador del Gasto resuelva la solicitud.";
       case "en-evaluacion":
         return "La solicitud ya fue enviada a proveedores y está en evaluación: las condiciones del pliego no admiten cambios.";
       case "adjudicada":

@@ -1,0 +1,145 @@
+<section class="ficha-mod" [attr.aria-labelledby]="idTitulo">
+  <header class="ficha-mod__cabecera">
+    <div class="ficha-mod__textos">
+      <span class="ficha-mod__icono" aria-hidden="true">
+        <mat-icon>gavel</mat-icon>
+      </span>
+      <div>
+        <h2 [id]="idTitulo">
+          Resolución del Ordenador del Gasto
+          <b aria-hidden="true">*</b>
+        </h2>
+        <p>
+          Seleccione la determinación jurídica y motive administrativamente el
+          acto sobre la solicitud de modificación.
+        </p>
+      </div>
+    </div>
+    <span class="chip chip--recto">
+      {{ esRechazo ? "Obligatorio al rechazar" : "Opcional al aprobar" }} ·
+      mínimo {{ minimo }}
+    </span>
+  </header>
+
+  <div class="ficha-mod__aviso" role="note">
+    <mat-icon aria-hidden="true">warning</mat-icon>
+    <p>
+      <strong>Solo se permite decidir una vez.</strong>
+      La decisión es única y definitiva: verifique la información, porque no
+      podrá modificarse ni revocarse después de confirmar (RN-35 provisional).
+    </p>
+  </div>
+
+  <form class="ficha-mod__formulario" [formGroup]="formulario" (ngSubmit)="confirmar()">
+    <div class="campo">
+      <span [id]="idResultadoEtiqueta" class="campo__etiqueta">
+        Decisión sobre la modificación
+        <b aria-hidden="true">*</b>
+      </span>
+      <mat-radio-group
+        formControlName="resultado"
+        class="opciones-radio ficha-mod__opciones"
+        [attr.aria-labelledby]="idResultadoEtiqueta"
+        [attr.aria-describedby]="mostrarErrorResultado ? idResultadoError : null"
+        (change)="marcarResultadoTocado()"
+      >
+        <mat-radio-button
+          value="aprobada"
+          class="opcion opcion--aprobada"
+          (click)="seleccionarResultado('aprobada')"
+        >
+          <span class="opcion__titulo">
+            <mat-icon aria-hidden="true">check_circle</mat-icon>
+            <span>APROBAR MODIFICACIÓN</span>
+            <span class="chip chip--exito">Favorable</span>
+          </span>
+          <span class="opcion__texto">
+            Autoriza la emisión de la adenda oficial, actualiza el cronograma y
+            los ítems, y habilita la actualización de cotizaciones para los
+            oferentes.
+          </span>
+        </mat-radio-button>
+
+        <mat-radio-button
+          value="rechazada"
+          class="opcion opcion--rechazada"
+          (click)="seleccionarResultado('rechazada')"
+        >
+          <span class="opcion__titulo">
+            <mat-icon aria-hidden="true">cancel</mat-icon>
+            <span>RECHAZAR MODIFICACIÓN</span>
+            <span class="chip chip--error">Desfavorable</span>
+          </span>
+          <span class="opcion__texto">
+            Desestima la solicitud de ajuste. El proceso continuará estrictamente
+            con los ítems y la fecha de cierre vigentes.
+          </span>
+        </mat-radio-button>
+      </mat-radio-group>
+
+      @if (mostrarErrorResultado) {
+        <p [id]="idResultadoError" class="campo__fallo" role="alert">
+          Seleccione si aprueba o rechaza la modificación.
+        </p>
+      }
+    </div>
+
+    <div class="campo">
+      <label [id]="idJustificacionEtiqueta" class="campo__etiqueta">
+        Observaciones y sustentación
+        @if (esRechazo) {
+          <b aria-hidden="true">*</b>
+        }
+      </label>
+      <p class="campo__ayuda">
+        @if (esRechazo) {
+          Para rechazar la modificación es obligatorio sustentar con al menos
+          {{ minimo }} caracteres.
+        } @else {
+          Opcional en la aprobación. Si registra observaciones, se publicarán
+          con la adenda.
+        }
+      </p>
+      <editor-enriquecido
+        formControlName="justificacion"
+        [idEtiqueta]="idJustificacionEtiqueta"
+        [idError]="idJustificacionError"
+        [minCaracteres]="minimo"
+        [rows]="4"
+        [pista]="'Ingrese la sustentación administrativa o jurídica de la decisión adoptada…'"
+        (blur)="marcarJustificacionTocada()"
+      ></editor-enriquecido>
+
+      @if (mostrarErrorJustificacion) {
+        <p [id]="idJustificacionError" class="campo__fallo" role="alert">
+          Para rechazar la modificación, es obligatorio sustentar con al menos
+          {{ minimo }} caracteres.
+        </p>
+      }
+    </div>
+
+    @if (error()) {
+      <div class="ficha-mod__error" role="alert">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <div>
+          <p>{{ error() }}</p>
+          <button
+            class="boton-recto"
+            type="button"
+            [disabled]="enviando()"
+            (click)="reintentar()"
+          >
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            <span>Reintentar</span>
+          </button>
+        </div>
+      </div>
+    }
+
+    <p class="visually-oculto" aria-live="polite">
+      @if (enviando()) {
+        Registrando la decisión…
+      }
+    </p>
+  </form>
+</section>

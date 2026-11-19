@@ -119,6 +119,12 @@
               <mat-icon aria-hidden="true">arrow_back</mat-icon>
               <span>Volver a pendientes</span>
             </button>
+            @if (s.modificacionPendiente?.radicado) {
+              <button class="boton-recto" type="button" (click)="abrirModificacion()">
+                <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+                <span>Modificación pendiente</span>
+              </button>
+            }
             <button class="boton-recto" type="button" (click)="descargarExpediente()">
               <mat-icon aria-hidden="true">folder_zip</mat-icon>
               <span>Expediente (ZIP)</span>

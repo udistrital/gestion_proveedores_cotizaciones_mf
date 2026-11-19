@@ -41,17 +41,6 @@ const routes: Routes = [
       import("./ordenador/ordenador.module").then((m) => m.OrdenadorModule),
   },
   /*
-   * Alias de O-04: la propuesta nombra la bandeja como `modificaciones-pendientes`
-   * y el Root puede enlazarla en cualquiera de las dos formas. Como los
-   * redirects se resuelven antes de los guards, la autorización la aplica el
-   * `rolGuard` de `validacion`.
-   */
-  {
-    path: "modificaciones-pendientes",
-    redirectTo: "validacion/modificaciones-pendientes",
-    pathMatch: "full",
-  },
-  /*
    * El orden importa: esta ruta debe evaluarse ANTES del redirect de
    * `bandeja-solicitudes`. Si el redirect va primero, captura la URL con
    * `pathMatch: "full"` y manda al proveedor al área solicitante, donde el
@@ -65,16 +54,6 @@ const routes: Routes = [
       import("./proveedor/proveedor.module").then(
         (m) => m.ProveedorModule,
       ),
-  },
-  /*
-   * Fallback para los roles que no son proveedor: si el Root enlaza a
-   * "Bandeja de solicitudes", un JD/OG aterriza en su listado en vez de ver un
-   * error de ruta.
-   */
-  {
-    path: "bandeja-solicitudes",
-    redirectTo: "/cotizaciones/solicitudes",
-    pathMatch: "full",
   },
   {
     path: "",

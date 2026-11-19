@@ -697,7 +697,7 @@ export class DetalleProveedorOfertaComponent implements OnInit {
         : this.origen === "subsanacion"
           ? ["/cotizaciones", "solicitudes", solicitud.id, "subsanacion"]
           : this.origen === "validacion"
-            ? ["/cotizaciones", "validacion", solicitud.id, "resultado"]
+            ? ["/cotizaciones", "bandeja-validacion", solicitud.id, "resultado"]
             : ["/cotizaciones", "solicitudes", solicitud.id, "oferentes"];
     void this.router.navigate(destino);
   }

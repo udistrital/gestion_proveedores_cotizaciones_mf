@@ -1,0 +1,69 @@
+<section
+  class="resolucion"
+  [class.resolucion--aprobada]="aprobada"
+  [class.resolucion--rechazada]="!aprobada"
+  aria-labelledby="resolucion-modificacion-titulo"
+>
+  <header class="resolucion__cabecera">
+    <span class="resolucion__icono" aria-hidden="true">
+      <mat-icon>{{ aprobada ? "verified" : "cancel" }}</mat-icon>
+    </span>
+    <div class="resolucion__titulos">
+      <h2 id="resolucion-modificacion-titulo">
+        {{ aprobada ? "Modificación aprobada" : "Modificación rechazada" }}
+      </h2>
+      <span class="chip" [class.chip--exito]="aprobada" [class.chip--error]="!aprobada">
+        <mat-icon aria-hidden="true">{{ aprobada ? "verified" : "cancel" }}</mat-icon>
+        <span>{{ aprobada ? "Aprobada por el Ordenador" : "Rechazada por el Ordenador" }}</span>
+      </span>
+    </div>
+  </header>
+
+  @if (decision; as resolucion) {
+    <div class="resolucion__bloque">
+      <span class="resolucion__rotulo">
+        {{ aprobada ? "Sustentación de la aprobación" : "Motivo del rechazo" }}
+      </span>
+      @if (resolucion.justificacionHtml) {
+        <div
+          class="resolucion__texto"
+          [innerHTML]="resolucion.justificacionHtml | htmlSeguro"
+        ></div>
+      } @else {
+        <p class="resolucion__texto resolucion__texto--vacio">
+          Sin observaciones adicionales.
+        </p>
+      }
+    </div>
+
+    <dl class="resolucion__datos">
+      <div>
+        <dt>Decidida por</dt>
+        <dd>{{ resolucion.autor || "—" }}</dd>
+        @if (resolucion.rol) {
+          <span>{{ resolucion.rol }}</span>
+        }
+      </div>
+      <div>
+        <dt>Fecha de la decisión</dt>
+        <dd>{{ resolucion.fecha || "—" }}</dd>
+      </div>
+      <div>
+        <dt>Versión</dt>
+        <dd>{{ resolucion.versionAnterior }} → {{ resolucion.versionVigente }}</dd>
+      </div>
+      <div>
+        <dt>Fecha de cierre</dt>
+        <dd>{{ cierreVisible }}</dd>
+      </div>
+      <div>
+        <dt>Notificación</dt>
+        <dd>{{ notificacionVisible }}</dd>
+      </div>
+      <div>
+        <dt>Radicado de la modificación</dt>
+        <dd>{{ modificacion.radicado }}</dd>
+      </div>
+    </dl>
+  }
+</section>

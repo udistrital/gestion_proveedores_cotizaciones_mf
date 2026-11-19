@@ -181,6 +181,17 @@ export type EstadoValidacionOrdenador =
   | "validada-aprobada"
   | "validada-rechazada";
 
+/**
+ * Estado de una modificación restringida frente al Ordenador del Gasto (O-04).
+ *
+ * Es un eje propio de la modificación, no de la solicitud: una solicitud puede
+ * tener varias modificaciones resueltas y una pendiente a la vez.
+ */
+export type EstadoModificacionOrdenador =
+  | "por-aprobar"
+  | "aprobada"
+  | "rechazada";
+
 export type TonoChip =
   | "primario"
   | "exito"
@@ -476,6 +487,35 @@ export const ESTADOS_VALIDACION: Readonly<
   },
 };
 
+/**
+ * Metadatos visuales de la modificación restringida (O-04).
+ *
+ * Las claves no chocan con las de la solicitud ni con las de la validación:
+ * `aprobada`/`rechazada` aquí describen el acto sobre la modificación.
+ */
+export const ESTADOS_MODIFICACION: Readonly<
+  Record<EstadoModificacionOrdenador, EstadoSolicitudMeta>
+> = {
+  "por-aprobar": {
+    etiqueta: "Pendiente OG",
+    tono: "primario",
+    icono: "pending_actions",
+    pulso: true,
+  },
+  aprobada: {
+    etiqueta: "Aprobada",
+    tono: "exito",
+    icono: "verified",
+    pulso: false,
+  },
+  rechazada: {
+    etiqueta: "Rechazada",
+    tono: "error",
+    icono: "cancel",
+    pulso: false,
+  },
+};
+
 /** Metadatos visuales del periodo de subsanación (S-12). */
 export const ESTADOS_SUBSANACION: Readonly<
   Record<EstadoSubsanacion, EstadoSolicitudMeta>
@@ -662,7 +702,8 @@ export const ESTADOS_CHIP: Readonly<
     | EstadoEstudioMercado
     | EstadoInvitacionEstudio
     | EstadoActualizacionRespuesta
-    | EstadoValidacionOrdenador,
+    | EstadoValidacionOrdenador
+    | EstadoModificacionOrdenador,
     EstadoSolicitudMeta
   >
 > = {
@@ -676,6 +717,7 @@ export const ESTADOS_CHIP: Readonly<
   ...ESTADOS_ESTUDIO_MERCADO,
   ...ESTADOS_INVITACION_ESTUDIO,
   ...ESTADOS_VALIDACION,
+  ...ESTADOS_MODIFICACION,
 };
 
 export const ACCIONES_SOLICITUD: Readonly<
@@ -913,6 +955,48 @@ export const ACCIONES_VALIDACION: Readonly<
     etiqueta: "Validar decisión",
     icono: "verified",
     ruta: "cotizaciones/bandeja-validacion/:id/validar",
+    principal: true,
+  },
+};
+
+/**
+ * Acciones de una fila de modificaciones por aprobar (O-04).
+ *
+ * `:id` es el radicado de la modificación (`MOD-…`), no el de la solicitud:
+ * una solicitud puede tener varias modificaciones resueltas.
+ */
+export type AccionModificacion =
+  | "ver-proceso"
+  | "decidir"
+  | "ver-resolucion";
+
+export interface AccionModificacionMeta {
+  readonly etiqueta: string;
+  readonly icono: string;
+  /** Ruta plantilla; `:id` es el radicado de la modificación. */
+  readonly ruta: string | null;
+  /** Acción principal del estado: se pinta con el botón lleno. */
+  readonly principal?: boolean;
+}
+
+export const ACCIONES_MODIFICACION: Readonly<
+  Record<AccionModificacion, AccionModificacionMeta>
+> = {
+  "ver-proceso": {
+    etiqueta: "Ver detalle del proceso",
+    icono: "visibility",
+    ruta: "cotizaciones/solicitudes/:solicitudId",
+  },
+  decidir: {
+    etiqueta: "Revisar y decidir",
+    icono: "gavel",
+    ruta: "cotizaciones/bandeja-validacion/modificaciones-pendientes/:id",
+    principal: true,
+  },
+  "ver-resolucion": {
+    etiqueta: "Ver resolución",
+    icono: "visibility",
+    ruta: "cotizaciones/bandeja-validacion/modificaciones-pendientes/:id",
     principal: true,
   },
 };

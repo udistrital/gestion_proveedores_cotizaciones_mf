@@ -2,6 +2,7 @@ import { EstadoSolicitud } from "src/app/core/constants/estados-solicitud.const"
 import type {
   DatosEdicionSolicitud,
   ModificacionPendiente,
+  ModificacionResuelta,
 } from "./edicion-solicitud.model";
 import {
   ContadoresPestanas,
@@ -52,6 +53,8 @@ export interface Solicitud {
   readonly ultimaModificacion?: string;
   /** Modificación restringida enviada y aún no aprobada (S-08). */
   readonly modificacionPendiente?: ModificacionPendiente;
+  /** Modificaciones resueltas por el Ordenador del Gasto (O-04). */
+  readonly modificacionesResueltas?: readonly ModificacionResuelta[];
   /** Registro de cancelación conservado en el expediente. */
   readonly cancelacion?: DatosCancelacionSolicitud;
   /** Cierre para formular observaciones; distinto del cierre de la solicitud. */

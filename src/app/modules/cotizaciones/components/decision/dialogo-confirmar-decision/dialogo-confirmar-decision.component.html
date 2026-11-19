@@ -2,8 +2,8 @@
   <header class="dialogo__cabecera">
     <span
       class="dialogo__icono"
-      [class.dialogo__icono--exito]="esValidacion && aprobada"
-      [class.dialogo__icono--error]="esValidacion && !aprobada"
+      [class.dialogo__icono--exito]="esDecisionFinal && aprobada"
+      [class.dialogo__icono--error]="esDecisionFinal && !aprobada"
       aria-hidden="true"
     >
       <mat-icon>{{ icono }}</mat-icon>
@@ -31,18 +31,50 @@
         <span class="dialogo__fila-etiqueta">Solicitud</span>
         <span class="dialogo__fila-valor">{{ datos.solicitudId }}</span>
       </div>
-      <div class="dialogo__fila">
-        <span class="dialogo__fila-etiqueta">Proveedor</span>
-        <span class="dialogo__fila-valor">{{ datos.proveedorNombre }}</span>
-      </div>
-      <div class="dialogo__fila">
-        <span class="dialogo__fila-etiqueta">Valor total con IVA</span>
-        <span class="dialogo__fila-valor dialogo__fila-valor--vino">
-          {{ moneda(datos.valor) }} COP
-        </span>
-      </div>
 
-      @if (esValidacion) {
+      @if (esModificacion) {
+        <div class="dialogo__fila">
+          <span class="dialogo__fila-etiqueta">Modificación</span>
+          <span class="dialogo__fila-valor">{{ datos.modificacionId || "—" }}</span>
+        </div>
+        <div class="dialogo__fila">
+          <span class="dialogo__fila-etiqueta">Qué se modifica</span>
+          <span class="dialogo__fila-valor">{{ datos.tipoCambio || "—" }}</span>
+        </div>
+        <div class="dialogo__fila">
+          <span class="dialogo__fila-etiqueta">Nueva fecha límite</span>
+          <span class="dialogo__fila-valor dialogo__fila-valor--vino">
+            {{
+              aprobada
+                ? (datos.cierrePropuesto || "Sin cambio de fecha")
+                : "Sin cambios"
+            }}
+          </span>
+        </div>
+        <div class="dialogo__fila">
+          <span class="dialogo__fila-etiqueta">Impacto a oferentes</span>
+          <span class="dialogo__fila-valor">
+            {{
+              (datos.notificados ?? 0) === 1
+                ? "1 cotizante notificado"
+                : (datos.notificados ?? 0) + " cotizantes notificados"
+            }}
+          </span>
+        </div>
+      } @else {
+        <div class="dialogo__fila">
+          <span class="dialogo__fila-etiqueta">Proveedor</span>
+          <span class="dialogo__fila-valor">{{ datos.proveedorNombre }}</span>
+        </div>
+        <div class="dialogo__fila">
+          <span class="dialogo__fila-etiqueta">Valor total con IVA</span>
+          <span class="dialogo__fila-valor dialogo__fila-valor--vino">
+            {{ moneda(datos.valor) }} COP
+          </span>
+        </div>
+      }
+
+      @if (esDecisionFinal) {
         <div class="dialogo__fila dialogo__fila--decision">
           <span class="dialogo__fila-etiqueta">Decisión a emitir</span>
           <span
@@ -56,7 +88,13 @@
 
         @if (justificacionCorta) {
           <div class="dialogo__respuesta">
-            <span class="dialogo__fila-etiqueta">Respuesta al proveedor</span>
+            <span class="dialogo__fila-etiqueta">
+              {{
+                esModificacion
+                  ? "Sustentación de la decisión"
+                  : "Respuesta al proveedor"
+              }}
+            </span>
             <p>{{ justificacionCorta }}</p>
           </div>
         }
@@ -72,14 +110,14 @@
 
     <div
       class="dialogo__aviso"
-      [class.dialogo__aviso--error]="esValidacion && !aprobada"
-      [class.dialogo__aviso--exito]="esValidacion && aprobada"
+      [class.dialogo__aviso--error]="esDecisionFinal && !aprobada"
+      [class.dialogo__aviso--exito]="esDecisionFinal && aprobada"
     >
       <mat-icon aria-hidden="true">
-        {{ esValidacion ? "gavel" : "warning" }}
+        {{ esDecisionFinal ? "gavel" : "warning" }}
       </mat-icon>
       <p>
-        @if (esValidacion) {
+        @if (esDecisionFinal) {
           Solo se permite responder una vez. La decisión es única y definitiva:
           no podrá modificarse ni revocarse después de confirmar.
         } @else {
@@ -105,7 +143,7 @@
       (click)="confirmar()"
     >
       <mat-icon aria-hidden="true">
-        {{ esValidacion ? "gavel" : "send" }}
+        {{ esDecisionFinal ? "gavel" : "send" }}
       </mat-icon>
       {{ textoBoton }}
     </button>

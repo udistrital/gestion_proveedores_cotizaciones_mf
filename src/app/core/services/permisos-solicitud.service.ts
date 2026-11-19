@@ -6,6 +6,7 @@ import {
   ACCIONES_DETALLE_PROVEEDOR,
   ACCIONES_ESTUDIO_MERCADO,
   ACCIONES_INVITACION_PROVEEDOR,
+  ACCIONES_MODIFICACION,
   ACCIONES_OFERENTE,
   ACCIONES_SOLICITUD,
   ACCIONES_SUBSANACION,
@@ -19,6 +20,8 @@ import {
   AccionEstudioMercado,
   AccionEstudioMercadoMeta,
   AccionInvitacionProveedor,
+  AccionModificacion,
+  AccionModificacionMeta,
   AccionOferente,
   AccionSolicitud,
   AccionSolicitudMeta,
@@ -40,6 +43,7 @@ import {
   accionesDecisionPorRoles,
   accionesDetalleProveedorPorRoles,
   accionesEstudioPorRoles,
+  accionesModificacionPorRoles,
   accionesOferentePorRoles,
   accionesSolicitudPorRoles,
   accionesSubsanacionPorRoles,
@@ -67,6 +71,9 @@ import {
 import type {
   SolicitudValidacionOrdenador,
 } from "src/app/modules/cotizaciones/models/validacion-ordenador.model";
+import type {
+  ModificacionOrdenador,
+} from "src/app/modules/cotizaciones/models/modificacion-ordenador.model";
 import {
   ROLES_SOLICITANTE,
   ROL_ORDENADOR_DEL_GASTO,
@@ -459,6 +466,70 @@ export class PermisosSolicitudService {
       .map((segmento) =>
         segmento === ":id" ? fila.solicitud.id : segmento,
       );
+  }
+
+  /* ─────────── Modificaciones por aprobar (O-04) ─────────── */
+
+  /**
+   * RN-32: solo el Ordenador del Gasto entra a modificaciones por aprobar.
+   *
+   * La asignación concreta de cada modificación (RN-02) la resuelve la capa de
+   * datos, no la plantilla.
+   */
+  puedeAccederModificaciones(): boolean {
+    return (
+      this.rol.estaCargado() && this.rol.tieneRol(ROL_ORDENADOR_DEL_GASTO)
+    );
+  }
+
+  /**
+   * Acciones que ofrece una fila de modificaciones.
+   *
+   * El estado y las acciones salen de la matriz de modificaciones; la plantilla
+   * no decide por rol ni por estado.
+   */
+  accionesModificacionPermitidas(
+    fila: ModificacionOrdenador,
+  ): readonly AccionModificacion[] {
+    if (
+      !this.rol.estaCargado() ||
+      !this.rol.tieneRol(ROL_ORDENADOR_DEL_GASTO)
+    ) {
+      return [];
+    }
+    return accionesModificacionPorRoles(this.rol.roles(), fila.estado);
+  }
+
+  /** true si la modificación puede decidirse ahora (RN-35). */
+  puedeDecidirModificacion(fila: ModificacionOrdenador): boolean {
+    return this.accionesModificacionPermitidas(fila).includes("decidir");
+  }
+
+  /** Texto visible de una acción de modificación. */
+  etiquetaAccionModificacion(accion: AccionModificacion): string {
+    return ACCIONES_MODIFICACION[accion].etiqueta;
+  }
+
+  /** Comandos de navegación de una acción de modificación. */
+  rutaAccionModificacion(
+    accion: AccionModificacion,
+    fila: ModificacionOrdenador,
+  ): readonly string[] | null {
+    const meta: AccionModificacionMeta = ACCIONES_MODIFICACION[accion];
+    if (!meta.ruta) {
+      return null;
+    }
+    return meta.ruta
+      .split("/")
+      .map((segmento) => {
+        if (segmento === ":id") {
+          return fila.radicado;
+        }
+        if (segmento === ":solicitudId") {
+          return fila.solicitud.id;
+        }
+        return segmento;
+      });
   }
 
   /* ───────────────── Comparador de cotizaciones (S-09) ───────────────── */

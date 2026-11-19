@@ -3,7 +3,10 @@ import {
   DestroyRef,
   EventEmitter,
   Input,
+  OnChanges,
+  OnInit,
   Output,
+  SimpleChanges,
   computed,
   inject,
   signal,
@@ -53,6 +56,7 @@ import { textoPlanoDesdeHtml } from "src/app/shared/utils/texto-plano";
 import {
   justificacionMinima,
   MIN_CARACTERES_JUSTIFICACION,
+  MIN_CARACTERES_MODIFICACION,
 } from "src/app/shared/validators/justificacion.validator";
 import { CalendarioFestivosService } from "../../../../services/calendario-festivos.service";
 import type {
@@ -71,9 +75,8 @@ const ESPERA_RADICACION = 1200;
 /**
  * Mínimo de caracteres (texto plano) de la justificación de la edición.
  *
- * Es provisional: el mockup de S-04 deja las reglas de trazabilidad de cambios
- * (RF-016) como "por definir", así que se adopta el mínimo de S-02 para los
- * textos largos.
+ * El borrador conserva los 20 caracteres de S-02. La modificación restringida
+ * exige 27 (RN-31), que se resuelven con `MIN_CARACTERES_MODIFICACION`.
  */
 export const MIN_JUSTIFICACION_EDICION = MIN_CARACTERES_JUSTIFICACION;
 
@@ -99,7 +102,7 @@ export const MIN_JUSTIFICACION_EDICION = MIN_CARACTERES_JUSTIFICACION;
   standalone: false,
   host: { class: "formulario-material" },
 })
-export class PasoRevisionComponent {
+export class PasoRevisionComponent implements OnInit, OnChanges {
   /** Resumen de solo lectura que arma el asistente con los pasos 1 a 6. */
   @Input() resumen: ResumenSolicitudProveedores | null = null;
 
@@ -232,8 +235,16 @@ export class PasoRevisionComponent {
    * ── Edición de una solicitud existente (S-04) ────────────────────────────
    */
 
-  /** Mínimo de caracteres de la justificación, expuesto a la plantilla. */
-  readonly minimoJustificacion = MIN_JUSTIFICACION_EDICION;
+  /**
+   * Mínimo de caracteres de la justificación, expuesto a la plantilla.
+   *
+   * RN-31: la modificación restringida exige 27; el borrador conserva 20.
+   */
+  get minimoJustificacion(): number {
+    return this.esRestringida
+      ? MIN_CARACTERES_MODIFICACION
+      : MIN_JUSTIFICACION_EDICION;
+  }
 
   /**
    * Justificación de la modificación.
@@ -261,6 +272,25 @@ export class PasoRevisionComponent {
       }
       this.temporizadores.clear();
     });
+  }
+
+  ngOnInit(): void {
+    this.actualizarMinimoJustificacion();
+  }
+
+  ngOnChanges(cambios: SimpleChanges): void {
+    if (cambios["modoEdicion"]) {
+      this.actualizarMinimoJustificacion();
+    }
+  }
+
+  /** Aplica el mínimo de RN-31 en la modificación restringida. */
+  private actualizarMinimoJustificacion(): void {
+    this.justificacion.setValidators([
+      Validators.required,
+      justificacionMinima(this.minimoJustificacion),
+    ]);
+    this.justificacion.updateValueAndValidity({ emitEvent: false });
   }
 
   // ── Vistas derivadas ─────────────────────────────────────────────────────
@@ -357,7 +387,7 @@ export class PasoRevisionComponent {
       return this.ayudaGuardar;
     }
     if (this.justificacion.invalid) {
-      return `Escriba una justificación de al menos ${MIN_JUSTIFICACION_EDICION} caracteres.`;
+      return `Escriba una justificación de al menos ${this.minimoJustificacion} caracteres.`;
     }
     return "";
   }
