@@ -1,0 +1,287 @@
+<!-- ─────────────────────────── Modo lectura ─────────────────────────────── -->
+@if (esLectura) {
+  <section class="ficha-lectura" [attr.aria-labelledby]="idTitulo">
+    <header class="ficha-lectura__cabecera">
+      <span class="ficha-lectura__icono" aria-hidden="true">
+        <mat-icon>{{ iconoEstadoLectura }}</mat-icon>
+      </span>
+      <div class="ficha-lectura__titulos">
+        <h3 [id]="idTitulo">Decisión registrada en el expediente</h3>
+        <span class="chip" [ngClass]="claseEstadoLectura">
+          <mat-icon aria-hidden="true">{{ iconoEstadoLectura }}</mat-icon>
+          <span>{{ etiquetaEstadoLectura }}</span>
+        </span>
+      </div>
+    </header>
+
+    @if (decisionMostrada) {
+      @if (validada) {
+        <span class="ficha-lectura__rotulo">Respuesta al proveedor</span>
+        <div
+          class="ficha-lectura__texto"
+          [innerHTML]="justificacionLectura | htmlSeguro"
+        ></div>
+      } @else {
+        <span class="ficha-lectura__rotulo">
+          Justificación del solicitante
+        </span>
+        <div
+          class="ficha-lectura__texto"
+          [innerHTML]="textoEnvioLectura | htmlSeguro"
+        ></div>
+        <p class="ficha-lectura__pendiente">
+          <mat-icon aria-hidden="true">pending_actions</mat-icon>
+          <span>
+            La decisión está pendiente de la validación del Ordenador del
+            Gasto.
+          </span>
+        </p>
+      }
+
+      <dl class="ficha-lectura__datos">
+        <div>
+          <dt>Enviada por</dt>
+          <dd>{{ envioAutorLectura || "—" }}</dd>
+          @if (envioRolLectura) {
+            <span>{{ envioRolLectura }}</span>
+          }
+        </div>
+        <div>
+          <dt>Fecha del envío</dt>
+          <dd>{{ envioFechaLectura || "—" }}</dd>
+        </div>
+        @if (validada) {
+          <div>
+            <dt>Validada por</dt>
+            <dd>{{ validacionAutorLectura || "—" }}</dd>
+            @if (validacionRolLectura) {
+              <span>{{ validacionRolLectura }}</span>
+            }
+          </div>
+          <div>
+            <dt>Fecha de la validación</dt>
+            <dd>{{ validacionFechaLectura || "—" }}</dd>
+          </div>
+        }
+        <div>
+          <dt>Código de verificación</dt>
+          <dd>{{ codigoLectura || "—" }}</dd>
+        </div>
+        <div>
+          <dt>Notificación al proveedor</dt>
+          <dd>{{ notificacionLectura }}</dd>
+        </div>
+      </dl>
+    } @else {
+      <p class="ficha-lectura__vacio" role="status">
+        El expediente todavía no registra una decisión.
+      </p>
+    }
+  </section>
+} @else {
+  <!-- ───────────────────── Formulario de decisión ───────────────────────── -->
+  <section class="decision__tarjeta" [attr.aria-labelledby]="idTitulo">
+    <header class="decision__tarjeta-cabecera">
+      <div class="decision__tarjeta-titulos">
+        <span class="decision__tarjeta-icono" aria-hidden="true">
+          <mat-icon>{{ esValidacion ? "gavel" : "description" }}</mat-icon>
+        </span>
+        <div>
+          <h2 [id]="idTitulo">
+            {{
+              esValidacion
+                ? "Decisión del Ordenador del Gasto"
+                : "Justificación de la decisión y respuesta al proveedor"
+            }}
+            <b aria-hidden="true">*</b>
+          </h2>
+          <p>
+            {{
+              esValidacion
+                ? "Acto administrativo de aprobación o rechazo con responsabilidad legal vinculante."
+                : "Sustento técnico-económico que verá el Ordenador del Gasto y el proveedor."
+            }}
+          </p>
+        </div>
+      </div>
+      <span class="chip chip--recto">
+        Obligatorio · mínimo {{ minimo }}
+      </span>
+    </header>
+
+    <div class="decision__aviso">
+      <mat-icon aria-hidden="true">warning</mat-icon>
+      <p>
+        @if (esValidacion) {
+          <strong>Solo se permite responder una vez.</strong>
+          La decisión es única y definitiva: verifique la información, porque no
+          podrá modificarse ni revocarse después de confirmar.
+        } @else {
+          <strong>Solo se permite enviar la decisión una vez.</strong>
+          Verifica la información detalladamente: no se podrán realizar cambios
+          después de confirmar y remitir al Ordenador del Gasto.
+        }
+      </p>
+    </div>
+
+    <form
+      class="decision__formulario"
+      [formGroup]="formulario"
+      (ngSubmit)="confirmar()"
+    >
+      @if (esValidacion) {
+        <div class="campo decision__campo decision__opciones">
+          <span [id]="idResultadoEtiqueta" class="campo__etiqueta">
+            Decisión sobre la cotización
+            <b aria-hidden="true">*</b>
+          </span>
+          <mat-radio-group
+            formControlName="resultado"
+            class="opciones-radio decision__radios"
+            [attr.aria-labelledby]="idResultadoEtiqueta"
+            (change)="marcarResultadoTocado()"
+          >
+            <mat-radio-button
+              value="aprobada"
+              class="decision__opcion decision__opcion--aprobada"
+              (click)="seleccionarResultado('aprobada')"
+            >
+              <span class="decision__opcion-titulo">
+                <mat-icon aria-hidden="true">check_circle</mat-icon>
+                <span>APRUEBA</span>
+                <span class="chip chip--exito">Favorable</span>
+              </span>
+              <span class="decision__opcion-texto">
+                Convalida la selección del proveedor, certifica la conveniencia
+                institucional y autoriza continuar hacia la orden contractual y
+                el registro presupuestal.
+              </span>
+            </mat-radio-button>
+
+            <mat-radio-button
+              value="rechazada"
+              class="decision__opcion decision__opcion--rechazada"
+              (click)="seleccionarResultado('rechazada')"
+            >
+              <span class="decision__opcion-titulo">
+                <mat-icon aria-hidden="true">cancel</mat-icon>
+                <span>RECHAZA</span>
+                <span class="chip chip--error">Desfavorable</span>
+              </span>
+              <span class="decision__opcion-texto">
+                Objeta la elección por inconveniencia técnica, fiscal o legal.
+                Exige registrar el motivo del rechazo (mínimo {{ minimo }}
+                caracteres).
+              </span>
+            </mat-radio-button>
+          </mat-radio-group>
+
+          @if (mostrarErrorResultado) {
+            <p
+              class="campo__fallo"
+              role="alert"
+              aria-live="assertive"
+            >
+              Seleccione si aprueba o rechaza la cotización.
+            </p>
+          }
+        </div>
+      }
+
+      <div class="campo decision__campo">
+        <label [id]="idJustificacionEtiqueta" class="campo__etiqueta">
+          {{
+            esValidacion
+              ? "Respuesta y observaciones al proveedor"
+              : "Justificación de la decisión y respuesta al proveedor"
+          }}
+          <b aria-hidden="true">*</b>
+        </label>
+        <editor-enriquecido
+          formControlName="justificacion"
+          [idEtiqueta]="idJustificacionEtiqueta"
+          [idError]="
+            mostrarErrorJustificacion ? idJustificacionError : ''
+          "
+          [minCaracteres]="minimo"
+          [rows]="6"
+          [pista]="
+            esValidacion
+              ? 'Registre el sustento de la aprobación o el motivo del rechazo.'
+              : 'Explique el sustento técnico-económico de la selección y la respuesta al proveedor.'
+          "
+          [ayuda]="
+            'Obligatorio · mínimo ' + minimo + ' caracteres de texto'
+          "
+          (blur)="marcarJustificacionTocada()"
+        ></editor-enriquecido>
+        @if (mostrarErrorJustificacion) {
+          <p
+            [id]="idJustificacionError"
+            class="campo__fallo"
+            role="alert"
+            aria-live="assertive"
+          >
+            {{
+              esValidacion
+                ? "La respuesta al proveedor es obligatoria y debe tener al menos "
+                : "La justificación es obligatoria y debe tener al menos "
+            }}
+            {{ minimo }} caracteres.
+          </p>
+        }
+      </div>
+
+      @if (!esValidacion) {
+        <mat-checkbox
+          formControlName="notificar"
+          [disabled]="enviando()"
+        >
+          Registrar notificación simulada al proveedor
+        </mat-checkbox>
+        <p class="decision__nota">
+          La notificación se registrará cuando el Ordenador del Gasto registre
+          la decisión final. Por ahora queda programada y marcada como simulada
+          (RF-13).
+        </p>
+      } @else {
+        <p class="decision__nota">
+          La notificación al proveedor se registrará como simulada. El
+          envío real y su estado de entrega son del backend.
+        </p>
+
+        @if (ofertaExcedePresupuesto) {
+          <div class="decision__error" role="alert">
+            <mat-icon aria-hidden="true">error_outline</mat-icon>
+            <p>
+              La oferta supera el techo presupuestal del CDP y no se tiene en
+              cuenta para la aprobación (RN-40). Solo puede rechazarse.
+            </p>
+          </div>
+        }
+      }
+    </form>
+
+    @if (error()) {
+      <div class="decision__error" role="alert" aria-live="assertive">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <p>{{ error() }}</p>
+        <button class="boton-recto" type="button" (click)="reintentar()">
+          <mat-icon aria-hidden="true">refresh</mat-icon>
+          <span>Reintentar</span>
+        </button>
+      </div>
+    }
+
+    @if (enviando()) {
+      <p class="decision__enviando" role="status" aria-live="polite">
+        <mat-spinner diameter="18" aria-hidden="true"></mat-spinner>
+        {{
+          esValidacion
+            ? "Registrando la decisión de validación…"
+            : "Registrando el envío a validación…"
+        }}
+      </p>
+    }
+  </section>
+}

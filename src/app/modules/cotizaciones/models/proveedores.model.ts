@@ -343,6 +343,13 @@ export interface ProveedorObjetivo {
   readonly correo?: string;
   readonly representante?: string;
   readonly departamento?: string;
+  /**
+   * Sitio web declarado en el banco de proveedores.
+   *
+   * Opcional: cuando no se registra se deriva del nombre con
+   * `sitioWebProveedor`, para la columna «Web» de la tabla de ofertas de O-02.
+   */
+  readonly sitioWeb?: string;
 }
 
 const ETIQUETAS_TIPO_PERSONA: Readonly<Record<TipoPersonaProveedor, string>> = {
@@ -412,6 +419,27 @@ function correoProveedor(nombre: string): string {
     .replace(/[^a-z0-9]+/g, "")
     .slice(0, 42);
   return `contacto@${slug || "proveedor"}.com.co`;
+}
+
+/**
+ * Dominio web visible del proveedor.
+ *
+ * El banco simulado no guarda el sitio de cada ficha; se deriva del nombre de
+ * forma determinista para la columna «Web» del resultado de la validación
+ * (O-02), igual que el correo de contacto.
+ */
+export function sitioWebProveedor(proveedor: ProveedorObjetivo): string {
+  if (proveedor.sitioWeb) {
+    return proveedor.sitioWeb;
+  }
+  const slug = proveedor.nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\b(s\.a\.s\.?|sas|ltda\.?|s\.a\.?|sa|e\.s\.p\.?)\b/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 28);
+  return `www.${slug || "proveedor"}.com.co`;
 }
 
 /**

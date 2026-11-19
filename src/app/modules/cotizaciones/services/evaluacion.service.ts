@@ -3,19 +3,18 @@ import { Observable, delay, of, throwError } from "rxjs";
 import type {
   DecisionSolicitud,
   RegistroEnvioDecision,
+  RegistroValidacionDecision,
 } from "../models/decision.model";
 import type { SolicitudDetalle } from "../models/solicitud.model";
 import { SolicitudesService } from "./solicitudes.service";
 
 /**
- * Capa de datos del trámite de decisión (S-11).
+ * Capa de datos del trámite de decisión (S-11) y de la validación final (O-03).
  *
- * S-11 registra el **envío a validación** de la oferta seleccionada. La
- * validación final (aprobar/rechazar) pertenece a las vistas exclusivas del
- * Ordenador del Gasto (O-01 a O-04), que se implementarán en una entrega
- * posterior; por eso este servicio no expone todavía un método de validación.
+ * S-11 registra el **envío a validación** de la oferta seleccionada. O-03
+ * registra la **aprobación o el rechazo** definitivo del Ordenador del Gasto.
  *
- * Es el único punto que conoce la pantalla. La persistencia del agregado
+ * Es el único punto que conocen las pantallas. La persistencia del agregado
  * (estado de la solicitud, invitaciones y bitácora) se delega en
  * `SolicitudesService`, que es compartido con el portal del proveedor.
  */
@@ -34,6 +33,17 @@ export abstract class EvaluacionService {
   abstract enviarAValidacion(
     solicitud: SolicitudDetalle,
     datos: RegistroEnvioDecision,
+  ): Observable<SolicitudDetalle>;
+
+  /**
+   * Registra la validación final del Ordenador del Gasto (O-03).
+   *
+   * Devuelve la solicitud actualizada para que la vista pase a solo lectura sin
+   * repetir la consulta del expediente.
+   */
+  abstract validarCotizacion(
+    solicitud: SolicitudDetalle,
+    datos: RegistroValidacionDecision,
   ): Observable<SolicitudDetalle>;
 }
 
@@ -87,5 +97,24 @@ export class EvaluacionServiceMock extends EvaluacionService {
     }
 
     return this.solicitudes.registrarEnvioDecision(solicitud.id, datos);
+  }
+
+  validarCotizacion(
+    solicitud: SolicitudDetalle,
+    datos: RegistroValidacionDecision,
+  ): Observable<SolicitudDetalle> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (params.get("mockValidacion") === "error-guardado") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible registrar la decisión de validación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    return this.solicitudes.registrarValidacionDecision(solicitud.id, datos);
   }
 }

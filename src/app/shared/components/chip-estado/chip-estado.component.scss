@@ -49,6 +49,12 @@
   color: var(--agora-info);
 }
 
+.chip--error {
+  background-color: var(--agora-error-surface);
+  border-color: var(--agora-error-border);
+  color: var(--agora-error);
+}
+
 .chip--primario {
   background-color: color-mix(in srgb, var(--agora-primary) 9%, var(--agora-surface));
   border-color: color-mix(in srgb, var(--agora-primary) 35%, transparent);

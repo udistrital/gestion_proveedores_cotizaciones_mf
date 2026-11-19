@@ -11,7 +11,7 @@ export interface CampoFiltro {
   /** Clave del criterio en el objeto emitido por `filtrar`. */
   readonly clave: string;
   readonly etiqueta: string;
-  readonly tipo: "select" | "texto";
+  readonly tipo: "select" | "texto" | "fecha";
   readonly opciones?: readonly { valor: string; etiqueta: string }[];
   readonly requerido?: boolean;
   readonly placeholder?: string;

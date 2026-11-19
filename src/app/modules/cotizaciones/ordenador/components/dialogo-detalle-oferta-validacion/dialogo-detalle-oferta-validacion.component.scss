@@ -1,0 +1,416 @@
+@use "src/app/shared/styles/tokens" as t;
+@use "src/app/shared/styles/detalle-solicitud" as detalle;
+
+/* Chips, botones rectangulares y tablas de la familia del detalle. */
+@include detalle.styles;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.dialogo {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  max-height: 90vh;
+  background: var(--agora-surface);
+  color: var(--agora-text);
+}
+
+/* ── Cabecera ─────────────────────────────────────────────────────────────── */
+
+.dialogo__cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--agora-borde-tarjeta);
+}
+
+.dialogo__icono {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--agora-borde-tarjeta);
+  border-radius: var(--agora-radio-lg);
+  background: var(--agora-superficie-neutra);
+  color: var(--agora-primary);
+}
+
+.dialogo__textos {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dialogo__titulo {
+  margin: 0;
+  color: var(--agora-primary);
+  font-size: var(--agora-font-xl);
+  line-height: 1.25;
+}
+
+.dialogo__subtitulo {
+  margin: 0;
+  color: var(--agora-texto-neutro);
+  font-size: var(--agora-font-sm);
+  line-height: 1.4;
+}
+
+.dialogo__cerrar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: var(--agora-radio-md);
+  background: transparent;
+  color: var(--agora-texto-neutro);
+  cursor: pointer;
+}
+
+.dialogo__cerrar:hover {
+  background: var(--agora-surface-soft);
+  color: var(--agora-text);
+}
+
+.dialogo__cerrar:focus-visible {
+  outline: 2px solid var(--agora-primary);
+  outline-offset: 2px;
+}
+
+/* ── Contenido ────────────────────────────────────────────────────────────── */
+
+.dialogo__contenido {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.dialogo__cargando,
+.dialogo__vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1rem;
+  color: var(--agora-text-muted);
+  font-size: var(--agora-font-md);
+  text-align: center;
+}
+
+.dialogo__vacio mat-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--agora-primary);
+  font-size: 2rem;
+}
+
+.dialogo__vacio p {
+  max-width: 34rem;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.dialogo__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  border: 1px solid var(--agora-error-border);
+  border-radius: var(--agora-radio-lg);
+  background: var(--agora-error-surface);
+  color: var(--agora-error);
+  text-align: center;
+}
+
+.dialogo__error p {
+  margin: 0;
+  font-size: var(--agora-font-md);
+}
+
+.dialogo__identidad {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--agora-borde-tarjeta);
+  border-radius: var(--agora-radio-lg);
+  background: var(--agora-superficie-neutra);
+}
+
+.dialogo__identidad-textos {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dialogo__nombre {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--agora-primary);
+  font-size: var(--agora-font-lg);
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.dialogo__bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.dialogo__bloque h3 {
+  margin: 0;
+  color: var(--agora-primary);
+  font-size: var(--agora-font-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dialogo__chips {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+/*
+ * Los chips de CIIU llevan la descripción completa de la actividad. El chip
+ * compartido no parte el texto (`white-space: nowrap`), así que aquí se permite
+ * el salto para que la fila se ajuste al ancho del modal sin scroll horizontal.
+ */
+.dialogo__chips .chip {
+  max-width: 100%;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.dialogo__chips .chip > span {
+  min-width: 0;
+}
+
+.dialogo__chips .chip mat-icon {
+  flex: 0 0 auto;
+}
+
+.dialogo__nota {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--agora-text-muted);
+  font-size: var(--agora-font-sm);
+}
+
+.dialogo__texto {
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--agora-borde-tarjeta);
+  border-radius: var(--agora-radio-md);
+  background: var(--agora-surface-soft);
+  color: var(--agora-text);
+  font-size: var(--agora-font-md);
+  line-height: 1.6;
+}
+
+.dialogo__texto :is(p, ul, ol) {
+  margin: 0 0 0.5rem;
+}
+
+.dialogo__texto :is(p, ul, ol):last-child {
+  margin-bottom: 0;
+}
+
+.dialogo__estado {
+  margin: 0;
+}
+
+.dialogo__aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--agora-error-border);
+  border-left: 3px solid var(--agora-error);
+  border-radius: var(--agora-radio-md);
+  background: var(--agora-error-surface);
+  color: var(--agora-error);
+}
+
+.dialogo__aviso mat-icon {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 1.15rem;
+}
+
+.dialogo__aviso p {
+  margin: 0;
+  font-size: var(--agora-font-md);
+  line-height: 1.45;
+}
+
+/* ── Desglose económico ───────────────────────────────────────────────────── */
+
+.dialogo__totales {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--agora-borde-tarjeta);
+  border-radius: var(--agora-radio-md);
+  background: var(--agora-surface-soft);
+}
+
+.dialogo__totales > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.dialogo__totales dt {
+  color: var(--agora-text-muted);
+  font-size: var(--agora-font-sm);
+}
+
+.dialogo__totales dd {
+  margin: 0;
+  color: var(--agora-text);
+  font-size: var(--agora-font-md);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.dialogo__descuento {
+  color: var(--agora-success) !important;
+}
+
+.dialogo__total {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--agora-border);
+}
+
+.dialogo__total dt {
+  color: var(--agora-primary);
+  font-size: var(--agora-font-md);
+  font-weight: 700;
+}
+
+.dialogo__total dd {
+  color: var(--agora-primary);
+  font-size: var(--agora-font-lg);
+  font-weight: 700;
+}
+
+/* ── Documentos ───────────────────────────────────────────────────────────── */
+
+.dialogo__documentos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dialogo__documentos li {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--agora-borde-tarjeta);
+  border-radius: var(--agora-radio-md);
+  background: var(--agora-surface);
+}
+
+.dialogo__documentos mat-icon {
+  flex: 0 0 auto;
+  color: var(--agora-primary);
+}
+
+.dialogo__documento-nombre {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+  color: var(--agora-text);
+  font-size: var(--agora-font-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dialogo__documento-vacio {
+  color: var(--agora-text-muted);
+  font-size: var(--agora-font-sm);
+  font-weight: 400;
+}
+
+/* ── Pie ──────────────────────────────────────────────────────────────────── */
+
+.dialogo__pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid var(--agora-borde-tarjeta);
+}
+
+.visually-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: t.$bp-xs) {
+  .dialogo__cabecera,
+  .dialogo__contenido,
+  .dialogo__pie {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .dialogo__pie {
+    align-items: stretch;
+  }
+
+  .dialogo__pie > * {
+    width: 100%;
+  }
+}

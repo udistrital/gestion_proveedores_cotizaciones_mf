@@ -1,7 +1,6 @@
 import { NgModule } from "@angular/core";
 import { SharedModule } from "src/app/shared/shared.module";
 import { DialogoCancelarSolicitudComponent } from "./components/dialogo-cancelar-solicitud/dialogo-cancelar-solicitud.component";
-import { DialogoConfirmarDecisionComponent } from "./components/dialogo-confirmar-decision/dialogo-confirmar-decision.component";
 import { DialogoSubsanacionComponent } from "./components/dialogo-subsanacion/dialogo-subsanacion.component";
 import { TarjetaIdentidadProveedorModule } from "../components/tarjeta-identidad-proveedor/tarjeta-identidad-proveedor.module";
 
@@ -9,13 +8,11 @@ import { TarjetaIdentidadProveedorModule } from "../components/tarjeta-identidad
 @NgModule({
   declarations: [
     DialogoCancelarSolicitudComponent,
-    DialogoConfirmarDecisionComponent,
     DialogoSubsanacionComponent,
   ],
   imports: [SharedModule, TarjetaIdentidadProveedorModule],
   exports: [
     DialogoCancelarSolicitudComponent,
-    DialogoConfirmarDecisionComponent,
     DialogoSubsanacionComponent,
     TarjetaIdentidadProveedorModule,
   ],

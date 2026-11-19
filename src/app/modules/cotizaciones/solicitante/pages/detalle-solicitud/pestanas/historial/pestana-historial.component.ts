@@ -2,7 +2,6 @@ import { Component, computed, inject, signal } from "@angular/core";
 import { AlertService } from "src/app/shared/services/alert.service";
 import {
   EventoLineaTiempo,
-  EtiquetaLineaTiempo,
 } from "src/app/shared/components/linea-tiempo/linea-tiempo.component";
 import { textoPlanoDesdeHtml } from "src/app/shared/utils/texto-plano";
 import { HistorialDetalle } from "../../../../../models/detalle-solicitud.model";
@@ -10,7 +9,7 @@ import {
   EventoHistorial,
   TIPOS_EVENTO_HISTORIAL,
   diasEnTramite,
-  etiquetaTipoEvento,
+  eventoLineaTiempoHistorial,
 } from "../../../../../models/historial.model";
 import { SolicitudDetalle } from "../../../../../models/solicitud.model";
 import { SolicitudDetalleStore } from "../../solicitud-detalle.store";
@@ -133,34 +132,6 @@ export class PestanaHistorialComponent {
 
   /** Mapea un evento de la bitácora al modelo genérico de la línea de tiempo. */
   private mapear(evento: EventoHistorial): EventoLineaTiempo {
-    const etiquetas: EtiquetaLineaTiempo[] = [
-      { texto: etiquetaTipoEvento(evento.tipo), tono: "neutro" },
-    ];
-    // La subsanación no cambia el estado de la solicitud: mostrar el mismo chip
-    // en cada evento sería ruido. El tipo de evento ya identifica la actuación.
-    const esSubsanacion = evento.tipo === "subsanacion";
-
-    return {
-      id: evento.id,
-      titulo: evento.titulo,
-      icono: evento.icono,
-      tono: evento.tono,
-      fecha: evento.fecha,
-      fechaIso: evento.fechaIso,
-      etiquetas,
-      estado: esSubsanacion ? undefined : evento.estadoNuevo,
-      estadoAnterior: esSubsanacion ? undefined : evento.estadoAnterior,
-      resultado: evento.resultado
-        ? { texto: evento.resultado, tono: evento.tonoResultado ?? "neutro" }
-        : undefined,
-      detalle: evento.detalle,
-      sello: evento.sello,
-      autor: {
-        usuario: evento.usuario,
-        nombre: evento.nombreUsuario,
-        rol: evento.rol,
-      },
-      evidencia: evento.evidencia,
-    };
+    return eventoLineaTiempoHistorial(evento);
   }
 }

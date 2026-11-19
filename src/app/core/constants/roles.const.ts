@@ -27,6 +27,14 @@ export const ROLES_SOLICITANTE: readonly Rol[] = [
   ROL_ORDENADOR_DEL_GASTO,
 ];
 
+/**
+ * Roles con acceso al área del ordenador (O-01 a O-04).
+ *
+ * RN-32: la validación de cotizaciones vinculadas es exclusiva del
+ * Ordenador del Gasto.
+ */
+export const ROLES_ORDENADOR: readonly Rol[] = [ROL_ORDENADOR_DEL_GASTO];
+
 /** Roles que pueden crear y editar solicitudes de cotización. */
 export const ROLES_CREACION_SOLICITUD: readonly string[] =
   environment.ROLES_CREACION.SOLICITUD;

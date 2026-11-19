@@ -5,6 +5,7 @@ import {
   rolGuard,
 } from "src/app/core/_guards/rol.guard";
 import {
+  ROLES_ORDENADOR,
   ROL_PROVEEDOR,
   ROLES_SOLICITANTE,
 } from "src/app/core/constants/roles.const";
@@ -30,6 +31,16 @@ const routes: Routes = [
       ),
   },
   /*
+   * Área exclusiva del Ordenador del Gasto.
+   */
+  {
+    path: "bandeja-validacion",
+    canMatch: [rolGuard],
+    data: { roles: ROLES_ORDENADOR },
+    loadChildren: () =>
+      import("./ordenador/ordenador.module").then((m) => m.OrdenadorModule),
+  },
+  /*
    * El orden importa: esta ruta debe evaluarse ANTES del redirect de
    * `bandeja-solicitudes`. Si el redirect va primero, captura la URL con
    * `pathMatch: "full"` y manda al proveedor al área solicitante, donde el
@@ -43,16 +54,6 @@ const routes: Routes = [
       import("./proveedor/proveedor.module").then(
         (m) => m.ProveedorModule,
       ),
-  },
-  /*
-   * Fallback para los roles que no son proveedor: si el Root enlaza a
-   * "Bandeja de solicitudes", un JD/OG aterriza en su listado en vez de ver un
-   * error de ruta.
-   */
-  {
-    path: "bandeja-solicitudes",
-    redirectTo: "/cotizaciones/solicitudes",
-    pathMatch: "full",
   },
   {
     path: "",

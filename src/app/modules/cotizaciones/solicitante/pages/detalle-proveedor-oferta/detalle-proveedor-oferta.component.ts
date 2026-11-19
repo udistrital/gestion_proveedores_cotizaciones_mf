@@ -30,12 +30,12 @@ import type {
   DetalleProveedorOferta,
   DocumentoOfertaRadicado,
   EventoOferta,
+  FilaItemOferta,
 } from "../../../models/detalle-proveedor-oferta.model";
+import { filasItemsOferta } from "../../../models/detalle-proveedor-oferta.model";
 import { formatoCop } from "../../../models/necesidad.model";
 import { identidadProveedor } from "../../../models/proveedores.model";
 import type { SolicitudDetalle } from "../../../models/solicitud.model";
-import type { ItemSolicitud } from "../../../models/items.model";
-import type { ItemRespuestaProveedor } from "../../../models/respuesta-proveedor.model";
 import { OferentesService } from "../../../services/oferentes.service";
 
 type EstadoVista =
@@ -49,21 +49,7 @@ type EstadoVista =
 
 type EstadoResolucion = "ok" | "no-encontrada" | "error";
 type PestanaDetalle = "cotizacion" | "persona" | "respuesta";
-type OrigenDetalle = "comparador" | "oferentes" | "subsanacion";
-
-/** Fila de la tabla de ítems, calculada para la plantilla. */
-interface FilaItemOferta {
-  readonly item: ItemSolicitud;
-  readonly respuesta: ItemRespuestaProveedor | undefined;
-  readonly valorUnitario: number;
-  readonly subtotal: number;
-  readonly iva: number;
-  readonly total: number;
-  readonly baseGravable: number;
-  readonly etiquetaIva: string;
-  readonly nota: string;
-  readonly superaTecho: boolean;
-}
+type OrigenDetalle = "comparador" | "oferentes" | "subsanacion" | "validacion";
 
 /**
  * Detalle del proveedor y su oferta (S-10).
@@ -287,37 +273,7 @@ export class DetalleProveedorOfertaComponent implements OnInit {
     if (!solicitud || !oferta) {
       return [];
     }
-
-    const factorDescuento =
-      oferta.subtotal > 0
-        ? oferta.oferta.totales.baseGravable / oferta.subtotal
-        : 1;
-
-    return solicitud.items.map((item) => {
-      const respuesta = oferta.oferta.items.find(
-        (fila) => fila.itemId === item.id,
-      );
-      const valorUnitario = respuesta?.valorUnitario ?? 0;
-      const subtotal = item.cantidad * valorUnitario;
-      const baseGravable = subtotal * factorDescuento;
-      const tasa = this.tasaIva(respuesta?.iva);
-      const iva = baseGravable * (tasa / 100);
-
-      return {
-        item,
-        respuesta,
-        valorUnitario,
-        subtotal,
-        iva,
-        total: baseGravable + iva,
-        baseGravable,
-        etiquetaIva: this.etiquetaIva(respuesta?.iva),
-        nota: respuesta?.nota?.trim() || "",
-        superaTecho:
-          item.valorUnitarioTecho != null &&
-          valorUnitario > item.valorUnitarioTecho,
-      };
-    });
+    return filasItemsOferta(solicitud, oferta);
   });
 
   readonly pestanasVisibles = computed(() =>
@@ -377,8 +333,7 @@ export class DetalleProveedorOfertaComponent implements OnInit {
     this.ruta.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {
-        this.origen =
-          params.get("volver") === "comparador" ? "comparador" : "oferentes";
+        this.origen = this.origenDesde(params.get("volver"));
         const tab = params.get("tab");
         if (
           tab &&
@@ -514,16 +469,20 @@ export class DetalleProveedorOfertaComponent implements OnInit {
 
   private leerQueryParams(): void {
     const params = this.ruta.snapshot.queryParamMap;
-    this.origen =
-      params.get("volver") === "comparador"
-        ? "comparador"
-        : params.get("volver") === "subsanacion"
-          ? "subsanacion"
-          : "oferentes";
+    this.origen = this.origenDesde(params.get("volver"));
     const tab = params.get("tab");
     if (tab && this.esPestana(tab)) {
       this.pestana.set(tab);
     }
+  }
+
+  /** Origen de navegación declarado en `?volver=`. */
+  private origenDesde(valor: string | null): OrigenDetalle {
+    return valor === "comparador" ||
+      valor === "subsanacion" ||
+      valor === "validacion"
+      ? valor
+      : "oferentes";
   }
 
   /* ── Permisos y acciones ───────────────────────────────────────────────── */
@@ -549,6 +508,9 @@ export class DetalleProveedorOfertaComponent implements OnInit {
     }
     if (this.origen === "subsanacion") {
       return "Volver a la subsanación";
+    }
+    if (this.origen === "validacion") {
+      return "Volver al resultado de la validación";
     }
     return "Volver al tablero de oferentes";
   }
@@ -734,7 +696,9 @@ export class DetalleProveedorOfertaComponent implements OnInit {
         ? ["/cotizaciones", "solicitudes", solicitud.id, "evaluacion"]
         : this.origen === "subsanacion"
           ? ["/cotizaciones", "solicitudes", solicitud.id, "subsanacion"]
-          : ["/cotizaciones", "solicitudes", solicitud.id, "oferentes"];
+          : this.origen === "validacion"
+            ? ["/cotizaciones", "bandeja-validacion", solicitud.id, "resultado"]
+            : ["/cotizaciones", "solicitudes", solicitud.id, "oferentes"];
     void this.router.navigate(destino);
   }
 
@@ -794,34 +758,6 @@ export class DetalleProveedorOfertaComponent implements OnInit {
   }
 
   /* ── Utilidades de la oferta ───────────────────────────────────────────── */
-
-  private tasaIva(tipo: string | undefined): number {
-    switch (tipo) {
-      case "19":
-        return 19;
-      case "5":
-        return 5;
-      default:
-        return 0;
-    }
-  }
-
-  private etiquetaIva(tipo: string | undefined): string {
-    switch (tipo) {
-      case "19":
-        return "19%";
-      case "5":
-        return "5%";
-      case "0":
-        return "0%";
-      case "excluido":
-        return "Excluido";
-      case "exento":
-        return "Exento";
-      default:
-        return "—";
-    }
-  }
 
   private mapearEvento(evento: EventoOferta): EventoLineaTiempo {
     const etiquetas: EtiquetaLineaTiempo[] = [

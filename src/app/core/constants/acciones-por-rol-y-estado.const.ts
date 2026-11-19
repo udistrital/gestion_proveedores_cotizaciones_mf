@@ -26,13 +26,17 @@ import {
   AccionDetalleProveedor,
   AccionEstudioMercado,
   AccionInvitacionProveedor,
+  AccionModificacion,
   AccionOferente,
   AccionSolicitud,
   AccionSubsanacion,
+  AccionValidacion,
   EstadoEstudioMercado,
+  EstadoModificacionOrdenador,
   EstadoOferente,
   EstadoPostulacionProveedor,
   EstadoSolicitud,
+  EstadoValidacionOrdenador,
   ESTADOS_SOLICITUD_LISTA,
 } from "./estados-solicitud.const";
 import { Rol, ROLES_DISPONIBLES } from "./roles.const";
@@ -81,6 +85,16 @@ export type AccionesSubsanacionPorRolYEstado = AccionesPorRolYEstado<
 export type AccionesEstudioMercadoPorRolYEstado = AccionesPorRolYEstado<
   EstadoEstudioMercado,
   AccionEstudioMercado
+>;
+
+export type AccionesValidacionPorRolYEstado = AccionesPorRolYEstado<
+  EstadoValidacionOrdenador,
+  AccionValidacion
+>;
+
+export type AccionesModificacionPorRolYEstado = AccionesPorRolYEstado<
+  EstadoModificacionOrdenador,
+  AccionModificacion
 >;
 
 /**
@@ -403,6 +417,51 @@ export const ACCIONES_ESTUDIO_MERCADO_POR_ROL_Y_ESTADO: AccionesEstudioMercadoPo
   };
 
 
+/* ─────────────── Validación del Ordenador del Gasto (O-01) ─────────────── */
+
+/**
+ * Acciones de una fila de la bandeja de validación (O-01).
+ *
+ * El eje es el acto de validación, no el estado del expediente ni el de la
+ * postulación. RN-35 se expresa no ofreciendo `validar` en los estados ya
+ * decididos: la vista no decide nada por estado ni por rol.
+ */
+const ACCIONES_VALIDACION_OG: Partial<
+  Record<EstadoValidacionOrdenador, readonly AccionValidacion[]>
+> = {
+  "por-validar": ["ver-proceso", "ver-resultado", "validar"],
+  "validada-aprobada": ["ver-proceso", "ver-resultado"],
+  "validada-rechazada": ["ver-proceso", "ver-resultado"],
+};
+
+export const ACCIONES_VALIDACION_POR_ROL_Y_ESTADO: AccionesValidacionPorRolYEstado =
+  {
+    [environment.ROL.ORDENADOR_DEL_GASTO]: ACCIONES_VALIDACION_OG,
+  };
+
+/* ─────────── Modificaciones por aprobar (O-04) ─────────── */
+
+/**
+ * Acciones de una fila de modificaciones por aprobar.
+ *
+ * RN-32: solo el Ordenador del Gasto. RN-35 (una sola respuesta) se expresa no
+ * ofreciendo `decidir` en los estados ya resueltos: la vista no decide por
+ * estado ni por rol, solo consulta la matriz.
+ */
+const ACCIONES_MODIFICACION_OG: Partial<
+  Record<EstadoModificacionOrdenador, readonly AccionModificacion[]>
+> = {
+  "por-aprobar": ["ver-proceso", "decidir"],
+  aprobada: ["ver-proceso", "ver-resolucion"],
+  rechazada: ["ver-proceso", "ver-resolucion"],
+};
+
+export const ACCIONES_MODIFICACION_POR_ROL_Y_ESTADO: AccionesModificacionPorRolYEstado =
+  {
+    [environment.ROL.ORDENADOR_DEL_GASTO]: ACCIONES_MODIFICACION_OG,
+  };
+
+
 /* ─────────────────────────────── Helpers ─────────────────────────────── */
 
 /**
@@ -482,6 +541,28 @@ export function accionesEstudioPorRoles(
 ): readonly AccionEstudioMercado[] {
   const acciones = roles.flatMap(
     (rol) => ACCIONES_ESTUDIO_MERCADO_POR_ROL_Y_ESTADO[rol]?.[estado] ?? [],
+  );
+  return Array.from(new Set(acciones));
+}
+
+/** Acciones de validación en un estado, uniendo todos los roles del usuario. */
+export function accionesValidacionPorRoles(
+  roles: readonly Rol[],
+  estado: EstadoValidacionOrdenador,
+): readonly AccionValidacion[] {
+  const acciones = roles.flatMap(
+    (rol) => ACCIONES_VALIDACION_POR_ROL_Y_ESTADO[rol]?.[estado] ?? [],
+  );
+  return Array.from(new Set(acciones));
+}
+
+/** Acciones de una modificación en un estado, uniendo todos los roles. */
+export function accionesModificacionPorRoles(
+  roles: readonly Rol[],
+  estado: EstadoModificacionOrdenador,
+): readonly AccionModificacion[] {
+  const acciones = roles.flatMap(
+    (rol) => ACCIONES_MODIFICACION_POR_ROL_Y_ESTADO[rol]?.[estado] ?? [],
   );
   return Array.from(new Set(acciones));
 }

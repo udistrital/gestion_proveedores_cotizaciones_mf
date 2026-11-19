@@ -168,11 +168,36 @@ export type EstadoDecision =
   | "aprobada"
   | "rechazada";
 
+/**
+ * Estado de la validación del Ordenador del Gasto (O-01).
+ *
+ * Es un eje propio: se deriva de `DecisionSolicitud.fase` y no del
+ * `EstadoSolicitud`. Una solicitud rechazada puede seguir `en-evaluacion` para
+ * un reenvío y su acto de validación sigue siendo «rechazada»; por eso la
+ * bandeja no lee el estado del expediente para decidir qué acciones ofrece.
+ */
+export type EstadoValidacionOrdenador =
+  | "por-validar"
+  | "validada-aprobada"
+  | "validada-rechazada";
+
+/**
+ * Estado de una modificación restringida frente al Ordenador del Gasto (O-04).
+ *
+ * Es un eje propio de la modificación, no de la solicitud: una solicitud puede
+ * tener varias modificaciones resueltas y una pendiente a la vez.
+ */
+export type EstadoModificacionOrdenador =
+  | "por-aprobar"
+  | "aprobada"
+  | "rechazada";
+
 export type TonoChip =
   | "primario"
   | "exito"
   | "advertencia"
   | "info"
+  | "error"
   | "neutro";
 
 export interface EstadoSolicitudMeta {
@@ -432,6 +457,65 @@ export const ESTADOS_DECISION: Readonly<
   },
 };
 
+/**
+ * Metadatos visuales de la validación del Ordenador del Gasto (O-01).
+ *
+ * Se mantiene aparte de `ESTADOS_DECISION` para no reutilizar sus claves
+ * (`rechazada` ya existe en la postulación del proveedor) dentro de
+ * `ESTADOS_CHIP`; así P-01 conserva su chip y aquí se usa el tono `error`.
+ */
+export const ESTADOS_VALIDACION: Readonly<
+  Record<EstadoValidacionOrdenador, EstadoSolicitudMeta>
+> = {
+  "por-validar": {
+    etiqueta: "Pendiente de validación",
+    tono: "primario",
+    icono: "pending_actions",
+    pulso: false,
+  },
+  "validada-aprobada": {
+    etiqueta: "Aprobada",
+    tono: "exito",
+    icono: "verified",
+    pulso: false,
+  },
+  "validada-rechazada": {
+    etiqueta: "Rechazada",
+    tono: "error",
+    icono: "cancel",
+    pulso: false,
+  },
+};
+
+/**
+ * Metadatos visuales de la modificación restringida (O-04).
+ *
+ * Las claves no chocan con las de la solicitud ni con las de la validación:
+ * `aprobada`/`rechazada` aquí describen el acto sobre la modificación.
+ */
+export const ESTADOS_MODIFICACION: Readonly<
+  Record<EstadoModificacionOrdenador, EstadoSolicitudMeta>
+> = {
+  "por-aprobar": {
+    etiqueta: "Pendiente OG",
+    tono: "primario",
+    icono: "pending_actions",
+    pulso: true,
+  },
+  aprobada: {
+    etiqueta: "Aprobada",
+    tono: "exito",
+    icono: "verified",
+    pulso: false,
+  },
+  rechazada: {
+    etiqueta: "Rechazada",
+    tono: "error",
+    icono: "cancel",
+    pulso: false,
+  },
+};
+
 /** Metadatos visuales del periodo de subsanación (S-12). */
 export const ESTADOS_SUBSANACION: Readonly<
   Record<EstadoSubsanacion, EstadoSolicitudMeta>
@@ -617,7 +701,9 @@ export const ESTADOS_CHIP: Readonly<
     | EstadoDocumentoSubsanacionProveedor
     | EstadoEstudioMercado
     | EstadoInvitacionEstudio
-    | EstadoActualizacionRespuesta,
+    | EstadoActualizacionRespuesta
+    | EstadoValidacionOrdenador
+    | EstadoModificacionOrdenador,
     EstadoSolicitudMeta
   >
 > = {
@@ -630,6 +716,8 @@ export const ESTADOS_CHIP: Readonly<
   ...ESTADOS_DOCUMENTO_SUBSANACION_PROVEEDOR,
   ...ESTADOS_ESTUDIO_MERCADO,
   ...ESTADOS_INVITACION_ESTUDIO,
+  ...ESTADOS_VALIDACION,
+  ...ESTADOS_MODIFICACION,
 };
 
 export const ACCIONES_SOLICITUD: Readonly<
@@ -827,6 +915,89 @@ export const ACCIONES_DECISION: Readonly<
     etiqueta: "Enviar a validación",
     icono: "send",
     ruta: null,
+  },
+};
+
+/**
+ * Acciones de una fila de la bandeja de validación (O-01).
+ *
+ * El orden del arreglo de la matriz define el orden de los botones: consulta
+ * del proceso, consulta del resultado y, al final, la acción principal.
+ */
+export type AccionValidacion =
+  | "ver-proceso"
+  | "ver-resultado"
+  | "validar";
+
+export interface AccionValidacionMeta {
+  readonly etiqueta: string;
+  readonly icono: string;
+  /** Ruta plantilla; `:id` es la solicitud. */
+  readonly ruta: string | null;
+  /** Acción principal del estado: se pinta con el botón lleno. */
+  readonly principal?: boolean;
+}
+
+export const ACCIONES_VALIDACION: Readonly<
+  Record<AccionValidacion, AccionValidacionMeta>
+> = {
+  "ver-proceso": {
+    etiqueta: "Ver detalle del proceso",
+    icono: "visibility",
+    ruta: "cotizaciones/solicitudes/:id",
+  },
+  "ver-resultado": {
+    etiqueta: "Resultado y cuadro comparativo",
+    icono: "fact_check",
+    ruta: "cotizaciones/bandeja-validacion/:id/resultado",
+  },
+  validar: {
+    etiqueta: "Validar decisión",
+    icono: "verified",
+    ruta: "cotizaciones/bandeja-validacion/:id/validar",
+    principal: true,
+  },
+};
+
+/**
+ * Acciones de una fila de modificaciones por aprobar (O-04).
+ *
+ * `:id` es el radicado de la modificación (`MOD-…`), no el de la solicitud:
+ * una solicitud puede tener varias modificaciones resueltas.
+ */
+export type AccionModificacion =
+  | "ver-proceso"
+  | "decidir"
+  | "ver-resolucion";
+
+export interface AccionModificacionMeta {
+  readonly etiqueta: string;
+  readonly icono: string;
+  /** Ruta plantilla; `:id` es el radicado de la modificación. */
+  readonly ruta: string | null;
+  /** Acción principal del estado: se pinta con el botón lleno. */
+  readonly principal?: boolean;
+}
+
+export const ACCIONES_MODIFICACION: Readonly<
+  Record<AccionModificacion, AccionModificacionMeta>
+> = {
+  "ver-proceso": {
+    etiqueta: "Ver detalle del proceso",
+    icono: "visibility",
+    ruta: "cotizaciones/solicitudes/:solicitudId",
+  },
+  decidir: {
+    etiqueta: "Revisar y decidir",
+    icono: "gavel",
+    ruta: "cotizaciones/bandeja-validacion/modificaciones-pendientes/:id",
+    principal: true,
+  },
+  "ver-resolucion": {
+    etiqueta: "Ver resolución",
+    icono: "visibility",
+    ruta: "cotizaciones/bandeja-validacion/modificaciones-pendientes/:id",
+    principal: true,
   },
 };
 
