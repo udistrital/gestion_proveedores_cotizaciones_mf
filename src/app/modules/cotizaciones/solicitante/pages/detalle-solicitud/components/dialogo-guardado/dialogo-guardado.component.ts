@@ -45,7 +45,7 @@ export class DialogoGuardadoComponent {
   get tituloAccion(): string {
     return this.esBorrador
       ? "La nueva versión quedó guardada como borrador."
-      : "La propuesta quedó pendiente de aprobación de la Oficina de Contratación.";
+      : "La propuesta quedó pendiente de aprobación del Ordenador del Gasto.";
   }
 
   /** Cierra volviendo al detalle de la solicitud. */

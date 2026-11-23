@@ -1,0 +1,428 @@
+<plantilla-pagina-contenedora
+  [breadcrumb]="breadcrumb"
+  title="Bandeja de validación"
+>
+  <section class="validacion" aria-label="Bandeja de validación">
+    <header class="validacion__encabezado">
+      <p class="validacion__descripcion">
+        Revise las solicitudes cuyo proveedor fue seleccionado por el
+        solicitante y decida si aprueba o rechaza la cotización con fines de
+        contratación oficial.
+      </p>
+      <div class="validacion__identidad">
+        <button
+          class="boton boton--secundario"
+          type="button"
+          (click)="abrirModificaciones()"
+        >
+          <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+          <span>Modificaciones por aprobar</span>
+        </button>
+      </div>
+    </header>
+
+    <section
+      class="validacion__indicadores"
+      aria-label="Indicadores de validación"
+    >
+      <button
+        type="button"
+        class="indicador indicador--pendiente"
+        [attr.aria-pressed]="filtroRapidoActivo === 'por-validar'"
+        (click)="filtrarRapido('por-validar')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Pendientes de validar</span>
+          <span class="indicador__valor">{{ conteos["por-validar"] }}</span>
+          <span class="indicador__nota">Requieren decisión O-01 urgente</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>pending_actions</mat-icon>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="indicador"
+        [attr.aria-pressed]="filtroRapidoActivo === 'todas'"
+        (click)="filtrarRapido('todas')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Validadas este mes</span>
+          <span class="indicador__valor">{{ conteos.validadasMes }}</span>
+          <span class="indicador__nota">Procesadas en el mes en curso</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>event_available</mat-icon>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="indicador indicador--aprobada"
+        [attr.aria-pressed]="filtroRapidoActivo === 'validada-aprobada'"
+        (click)="filtrarRapido('validada-aprobada')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Aprobadas</span>
+          <span class="indicador__valor">{{ conteos["validada-aprobada"] }}</span>
+          <span class="indicador__nota">Hacia orden contractual formal</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>task_alt</mat-icon>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="indicador indicador--rechazada"
+        [attr.aria-pressed]="filtroRapidoActivo === 'validada-rechazada'"
+        (click)="filtrarRapido('validada-rechazada')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Rechazadas</span>
+          <span class="indicador__valor">{{
+            conteos["validada-rechazada"]
+          }}</span>
+          <span class="indicador__nota">Devueltas con observaciones técnicas</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>cancel</mat-icon>
+        </span>
+      </button>
+    </section>
+
+    <listado-filtros
+      [campos]="camposFiltro"
+      [filtrosRapidos]="filtrosRapidos"
+      [filtroRapidoActivo]="filtroRapidoActivo"
+      [nota]="notaFiltros"
+      (filtrar)="filtrar($event)"
+      (filtroRapido)="filtrarRapido($event)"
+      (limpiar)="limpiar()"
+    />
+
+    <section class="validacion__tabla" aria-labelledby="titulo-registros">
+      <header class="validacion__tabla-cabecera">
+        <h2 id="titulo-registros">
+          <mat-icon aria-hidden="true">fact_check</mat-icon>
+          <span>Solicitudes para validación</span>
+        </h2>
+        <div class="validacion__tabla-meta">
+          @if (vista() === "listo") {
+            <span class="validacion__total">{{ total }} registros</span>
+          }
+        </div>
+      </header>
+
+      <p class="validacion__solo-lectura" aria-live="polite">
+        {{ resultadoAnunciable }}
+      </p>
+
+      @if (vista() === "cargando") {
+        <div class="validacion__esqueleto" aria-busy="true" aria-live="polite">
+          <span class="validacion__solo-lectura">Cargando validaciones…</span>
+          <div class="esqueleto__fila esqueleto__fila--cabecera"></div>
+          @for (fila of esqueleto; track fila) {
+            <div class="esqueleto__fila"></div>
+          }
+          <div class="esqueleto__pie"></div>
+        </div>
+      } @else if (vista() === "error") {
+        <div class="validacion__estado validacion__estado--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          <h2>No pudimos cargar las validaciones</h2>
+          <p>
+            {{
+              mensajeError ||
+                "Ocurrió un problema al consultar la bandeja. Intente nuevamente."
+            }}
+          </p>
+          <button type="button" class="boton boton--secundario" (click)="cargar()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            <span>Reintentar</span>
+          </button>
+        </div>
+      } @else if (total === 0 && !hayFiltrosAplicados) {
+        <div class="validacion__estado" role="status" aria-live="polite">
+          <mat-icon class="validacion__estado-icono" aria-hidden="true">
+            task_alt
+          </mat-icon>
+          <h2>No tiene solicitudes pendientes de validación</h2>
+          <p>
+            Todas las cotizaciones vinculadas han sido tramitadas
+            satisfactoriamente por el Despacho del Ordenador del Gasto.
+          </p>
+          <div class="validacion__estado-acciones">
+            <button
+              type="button"
+              class="boton boton--secundario"
+              (click)="verHistoricos()"
+            >
+              <mat-icon aria-hidden="true">history</mat-icon>
+              <span>Ver histórico de validadas</span>
+            </button>
+            <button
+              type="button"
+              class="boton boton--primario"
+              (click)="cargar()"
+            >
+              <mat-icon aria-hidden="true">refresh</mat-icon>
+              <span>Actualizar bandeja</span>
+            </button>
+          </div>
+        </div>
+      } @else if (total === 0) {
+        <div class="validacion__estado" role="status" aria-live="polite">
+          <mat-icon class="validacion__estado-icono" aria-hidden="true">
+            filter_alt_off
+          </mat-icon>
+          <h2>No hay validaciones que coincidan con los filtros</h2>
+          <p>Pruebe con otros criterios o limpie los filtros aplicados.</p>
+          <button type="button" class="boton boton--secundario" (click)="limpiar()">
+            <mat-icon aria-hidden="true">restart_alt</mat-icon>
+            <span>Limpiar filtros</span>
+          </button>
+        </div>
+      } @else {
+        <div class="validacion__tabla-scroll">
+          <table
+            aria-label="Solicitudes de cotización para validación del ordenador del gasto"
+          >
+            <caption class="validacion__solo-lectura">
+              Solicitudes cerradas con proveedor seleccionado y decisión
+              pendiente o ya validada por el ordenador del gasto
+            </caption>
+            <thead>
+              <tr>
+                <th
+                  scope="col"
+                  class="validacion__th validacion__th--orden"
+                  [attr.aria-sort]="
+                    criterios.ordenNumero === 'desc' ? 'descending' : 'ascending'
+                  "
+                >
+                  <button
+                    class="validacion__orden"
+                    type="button"
+                    title="Ordenar por número de solicitud"
+                    (click)="ordenarPorNumero()"
+                  >
+                    <span>N.° Solicitud</span>
+                    <mat-icon aria-hidden="true">swap_vert</mat-icon>
+                  </button>
+                </th>
+                <th scope="col" class="validacion__th">Vigencia</th>
+                <th scope="col" class="validacion__th">Unidad ejecutora</th>
+                <th scope="col" class="validacion__th">
+                  Fecha procesamiento
+                </th>
+                <th scope="col" class="validacion__th">Título del proceso</th>
+                <th scope="col" class="validacion__th">
+                  Proveedor seleccionado
+                </th>
+                <th scope="col" class="validacion__th validacion__th--numero">
+                  Valor c/IVA
+                </th>
+                <th scope="col" class="validacion__th">Apertura</th>
+                <th scope="col" class="validacion__th">Cierre</th>
+                <th scope="col" class="validacion__th">Dependencia</th>
+                <th scope="col" class="validacion__th">Tipo</th>
+                <th scope="col" class="validacion__th validacion__th--centro">
+                  Estado validación
+                </th>
+                @if (hayColumnaAcciones()) {
+                  <th
+                    scope="col"
+                    class="validacion__th validacion__th--centro"
+                  >
+                    Acciones
+                  </th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (fila of validaciones; track fila.solicitud.id) {
+                <tr class="validacion__fila">
+                  <td class="validacion__td validacion__td--numero">
+                    <strong>{{ fila.solicitud.id }}</strong>
+                  </td>
+                  <td class="validacion__td validacion__td--muted">
+                    {{ fila.solicitud.vigencia }}
+                  </td>
+                  <td class="validacion__td validacion__td--muted">
+                    {{ unidad(fila) }}
+                  </td>
+                  <td class="validacion__td validacion__td--muted">
+                    {{ fechaProcesamiento(fila) }}
+                  </td>
+                  <td class="validacion__td validacion__td--titulo">
+                    {{ fila.solicitud.titulo }}
+                  </td>
+                  <td class="validacion__td validacion__td--proveedor">
+                    <div class="validacion__proveedor">
+                      <strong>{{ fila.proveedor.nombre }}</strong>
+                      @if (fila.proveedor.nit) {
+                        <span class="validacion__nit">
+                          NIT {{ fila.proveedor.nit }}
+                        </span>
+                      }
+                      <span class="validacion__badge-seleccionado">
+                        <mat-icon aria-hidden="true">check_circle</mat-icon>
+                        <span>Proveedor seleccionado</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td class="validacion__td validacion__td--valor">
+                    {{ valor(fila) }}
+                  </td>
+                  <td class="validacion__td validacion__td--muted">
+                    {{ fila.solicitud.apertura || "—" }}
+                  </td>
+                  <td class="validacion__td validacion__td--muted">
+                    {{ fila.solicitud.cierre || "—" }}
+                  </td>
+                  <td class="validacion__td validacion__td--muted">
+                    {{ fila.solicitud.dependencia }}
+                  </td>
+                  <td class="validacion__td">
+                    <span class="validacion__tipo">{{ tipo(fila) }}</span>
+                  </td>
+                  <td class="validacion__td validacion__td--centro">
+                    <chip-estado [estado]="estadoDe(fila)" />
+                  </td>
+                  @if (hayColumnaAcciones()) {
+                    <td class="validacion__td validacion__td--acciones">
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="validacion__boton-acciones"
+                        [class.validacion__boton-acciones--activo]="
+                          filaMenuAbierto === fila.solicitud.id
+                        "
+                        [matMenuTriggerFor]="menuAcciones"
+                        [attr.aria-label]="
+                          'Acciones de la solicitud ' + fila.solicitud.id
+                        "
+                        (menuOpened)="abrirMenuAcciones(fila.solicitud.id)"
+                        (menuClosed)="cerrarMenuAcciones()"
+                      >
+                        <mat-icon aria-hidden="true" color="primary">
+                          more_vert
+                        </mat-icon>
+                      </button>
+                      <mat-menu
+                        #menuAcciones="matMenu"
+                        panelClass="validacion__menu-acciones"
+                        xPosition="before"
+                      >
+                        @for (accion of accionesDe(fila); track accion) {
+                          <button
+                            mat-menu-item
+                            type="button"
+                            (click)="ejecutarAccion(accion, fila)"
+                          >
+                            <mat-icon aria-hidden="true" color="primary">
+                              {{ ACCIONES[accion].icono }}
+                            </mat-icon>
+                            <span>{{ etiquetaAccion(accion) }}</span>
+                          </button>
+                        }
+                      </mat-menu>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="validacion__paginador">
+          <div class="validacion__paginador-info">
+            <span>Mostrar:</span>
+            <div class="validacion__paginador-select">
+              <select
+                [value]="porPagina"
+                (change)="cambiarPorPagina($event)"
+                aria-label="Número de solicitudes por página"
+              >
+                @for (opcion of opcionesPorPagina; track opcion) {
+                  <option [value]="opcion">{{ opcion }}</option>
+                }
+              </select>
+              <mat-icon aria-hidden="true">arrow_drop_down</mat-icon>
+            </div>
+            <span>por página</span>
+          </div>
+
+          <div class="validacion__paginador-rango">
+            Mostrando
+            <span class="validacion__paginador-valor">{{ rangoInicio }}</span>–<span
+              class="validacion__paginador-valor"
+              >{{ rangoFin }}</span
+            >
+            de
+            <span class="validacion__paginador-valor">{{ total }}</span>
+            solicitudes
+          </div>
+
+          <nav
+            aria-label="Paginación de solicitudes para validación"
+            class="validacion__paginador-navegacion"
+          >
+            <button
+              class="validacion__paginador-boton"
+              type="button"
+              title="Primera página"
+              [disabled]="pagina === 0"
+              (click)="irAPagina(0)"
+            >
+              <mat-icon aria-hidden="true">first_page</mat-icon>
+            </button>
+            <button
+              class="validacion__paginador-boton"
+              type="button"
+              title="Anterior"
+              [disabled]="pagina === 0"
+              (click)="irAPagina(pagina - 1)"
+            >
+              <mat-icon aria-hidden="true">chevron_left</mat-icon>
+            </button>
+            @for (numero of paginasVisibles; track numero) {
+              <button
+                class="validacion__paginador-boton validacion__paginador-boton--pagina"
+                type="button"
+                [attr.aria-current]="numero === pagina + 1 ? 'page' : null"
+                [attr.aria-label]="'Página ' + numero"
+                [class.validacion__paginador-boton--activo]="
+                  numero === pagina + 1
+                "
+                (click)="irAPagina(numero - 1)"
+              >
+                {{ numero }}
+              </button>
+            }
+            <button
+              class="validacion__paginador-boton"
+              type="button"
+              title="Siguiente"
+              [disabled]="pagina + 1 >= totalPaginas"
+              (click)="irAPagina(pagina + 1)"
+            >
+              <mat-icon aria-hidden="true">chevron_right</mat-icon>
+            </button>
+            <button
+              class="validacion__paginador-boton"
+              type="button"
+              title="Última página"
+              [disabled]="pagina + 1 >= totalPaginas"
+              (click)="irAPagina(totalPaginas - 1)"
+            >
+              <mat-icon aria-hidden="true">last_page</mat-icon>
+            </button>
+          </nav>
+        </footer>
+      }
+    </section>
+  </section>
+</plantilla-pagina-contenedora>

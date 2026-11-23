@@ -181,7 +181,7 @@ export class DetalleSolicitudComponent implements OnInit {
    * true si hay una modificación restringida esperando aprobación (S-08).
    *
    * El detalle sigue mostrando la versión publicada: la propuesta vive en
-   * `modificacionPendiente` hasta que la Oficina de Contratación la apruebe.
+   * `modificacionPendiente` hasta que el Ordenador del Gasto la resuelva (O-04).
    */
   readonly tieneModificacionPendiente = computed<boolean>(
     () => !!this.store.solicitud()?.modificacionPendiente,

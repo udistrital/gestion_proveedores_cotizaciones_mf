@@ -1,0 +1,444 @@
+<plantilla-pagina-contenedora
+  [breadcrumb]="breadcrumb"
+  title="Modificaciones por aprobar"
+>
+  <section class="modificaciones" aria-label="Modificaciones por aprobar">
+    <header class="modificaciones__encabezado">
+      <div class="modificaciones__textos">
+        <p class="modificaciones__descripcion">
+          Revise las solicitudes de modificación radicadas por las dependencias
+          y decida su aprobación o rechazo institucional. Una vez procesada la
+          solicitud, los cambios se limitan a los ítems y a la fecha de cierre
+          (RN-30).
+        </p>
+        <div class="modificaciones__identidad">
+          <span class="modificaciones__rol">
+            <mat-icon aria-hidden="true">balance</mat-icon>
+            <span>Facultad precontractual · CSU Acuerdo 003/2015</span>
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <aside class="modificaciones__aviso" aria-label="Aviso normativo">
+      <mat-icon aria-hidden="true">verified_user</mat-icon>
+      <div>
+        <strong>Aviso Normativo Rectoral</strong>
+        <p>
+          Las modificaciones solicitadas directamente por su despacho como Ordenador del Gasto se aprueban automáticamente por competencia originaria. Las solicitudes radicadas por Decanaturas, Direcciones o Unidades Académico-Administrativas requieren su firma y acto resolutivo expreso.
+        </p>
+      </div>
+    </aside>
+
+    <section
+      class="modificaciones__indicadores"
+      aria-label="Indicadores de modificaciones"
+    >
+      <button
+        type="button"
+        class="indicador indicador--pendiente"
+        [attr.aria-pressed]="filtroRapidoActivo === 'por-aprobar'"
+        (click)="filtrarRapido('por-aprobar')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Pendientes por decidir</span>
+          <span class="indicador__valor">{{ conteos["por-aprobar"] }}</span>
+          <span class="indicador__nota">
+            @if (cierresProximos > 0) {
+              {{ cierresProximos }} con cierre en menos de 48 h
+            } @else {
+              Sin cierres próximos en esta página
+            }
+          </span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>gavel</mat-icon>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="indicador indicador--aprobada"
+        [attr.aria-pressed]="filtroRapidoActivo === 'aprobada'"
+        (click)="filtrarRapido('aprobada')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Aprobadas este mes</span>
+          <span class="indicador__valor">{{ conteos.aprobadasMes }}</span>
+          <span class="indicador__nota">Con adenda emitida</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>task_alt</mat-icon>
+        </span>
+      </button>
+
+      <button
+        type="button"
+        class="indicador indicador--rechazada"
+        [attr.aria-pressed]="filtroRapidoActivo === 'rechazada'"
+        (click)="filtrarRapido('rechazada')"
+      >
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Rechazadas</span>
+          <span class="indicador__valor">{{ conteos.rechazada }}</span>
+          <span class="indicador__nota">Con observaciones del despacho</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>cancel</mat-icon>
+        </span>
+      </button>
+
+      <article class="indicador indicador--impacto">
+        <span class="indicador__cuerpo">
+          <span class="indicador__etiqueta">Impacto a oferentes</span>
+          <span class="indicador__valor">{{ conteos.procesosAprobados }}</span>
+          <span class="indicador__nota">Procesos con modificación aprobada</span>
+        </span>
+        <span class="indicador__icono" aria-hidden="true">
+          <mat-icon>groups</mat-icon>
+        </span>
+      </article>
+    </section>
+
+    <listado-filtros
+      [campos]="camposFiltro"
+      [filtrosRapidos]="filtrosRapidos"
+      [filtroRapidoActivo]="filtroRapidoActivo"
+      [nota]="notaFiltros"
+      (filtrar)="filtrar($event)"
+      (filtroRapido)="filtrarRapido($event)"
+      (limpiar)="limpiar()"
+    />
+
+    <section class="modificaciones__tabla" aria-labelledby="titulo-registros">
+      <header class="modificaciones__tabla-cabecera">
+        <h2 id="titulo-registros">
+          <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+          <span>Solicitudes recibidas para decisión</span>
+        </h2>
+        <div class="modificaciones__tabla-meta">
+          @if (vista() === "listo") {
+            <span class="modificaciones__total">{{ total }} en vista</span>
+          }
+        </div>
+      </header>
+
+      <p class="modificaciones__solo-lectura" aria-live="polite">
+        {{ resultadoAnunciable }}
+      </p>
+
+      @if (vista() === "cargando") {
+        <div class="modificaciones__esqueleto" aria-busy="true" aria-live="polite">
+          <span class="visually-oculto">Cargando modificaciones…</span>
+          <div class="esqueleto__fila esqueleto__fila--cabecera"></div>
+          @for (fila of esqueleto; track fila) {
+            <div class="esqueleto__fila"></div>
+          }
+          <div class="esqueleto__pie"></div>
+        </div>
+      } @else if (vista() === "error") {
+        <div class="modificaciones__estado modificaciones__estado--error" role="alert">
+          <mat-icon aria-hidden="true">error_outline</mat-icon>
+          <h2>No pudimos cargar las modificaciones</h2>
+          <p>
+            {{
+              mensajeError ||
+                "Ocurrió un problema al consultar la bandeja. Intente nuevamente."
+            }}
+          </p>
+          <button class="boton boton--secundario" type="button" (click)="cargar()">
+            <mat-icon aria-hidden="true">refresh</mat-icon>
+            <span>Reintentar</span>
+          </button>
+        </div>
+      } @else if (total === 0 && !hayFiltrosAplicados) {
+        <div class="modificaciones__estado" role="status" aria-live="polite">
+          <mat-icon class="modificaciones__estado-icono" aria-hidden="true">
+            task_alt
+          </mat-icon>
+          <h2>No hay modificaciones pendientes</h2>
+          <p>
+            Todas las solicitudes de modificación radicadas por las dependencias
+            han sido resueltas por el Ordenador del Gasto.
+          </p>
+          <div class="modificaciones__estado-acciones">
+            <button
+              class="boton boton--secundario"
+              type="button"
+              (click)="filtrarRapido('todas')"
+            >
+              <mat-icon aria-hidden="true">history</mat-icon>
+              <span>Ver histórico completo</span>
+            </button>
+            <button class="boton boton--primario" type="button" (click)="cargar()">
+              <mat-icon aria-hidden="true">refresh</mat-icon>
+              <span>Actualizar bandeja</span>
+            </button>
+          </div>
+        </div>
+      } @else if (total === 0) {
+        <div class="modificaciones__estado" role="status" aria-live="polite">
+          <mat-icon class="modificaciones__estado-icono" aria-hidden="true">
+            filter_alt_off
+          </mat-icon>
+          <h2>No hay modificaciones que coincidan con los filtros</h2>
+          <p>Pruebe con otros criterios o limpie los filtros aplicados.</p>
+          <button class="boton boton--secundario" type="button" (click)="limpiar()">
+            <mat-icon aria-hidden="true">restart_alt</mat-icon>
+            <span>Limpiar filtros</span>
+          </button>
+        </div>
+      } @else {
+        <div class="modificaciones__tabla-scroll">
+          <table
+            aria-label="Modificaciones de solicitudes de cotización pendientes de decisión del ordenador del gasto"
+          >
+            <caption class="visually-oculto">
+              Modificaciones restringidas radicadas por las dependencias, con su
+              alcance, cierre vigente y estado
+            </caption>
+            <thead>
+              <tr>
+                <th
+                  scope="col"
+                  class="modificaciones__th modificaciones__th--orden"
+                  [attr.aria-sort]="
+                    criterios.ordenNumero === 'desc' ? 'descending' : 'ascending'
+                  "
+                >
+                  <button
+                    class="modificaciones__orden"
+                    type="button"
+                    title="Ordenar por radicado"
+                    (click)="ordenarPorRadicado()"
+                  >
+                    <span>Modificación / Solicitud</span>
+                    <mat-icon aria-hidden="true">swap_vert</mat-icon>
+                  </button>
+                </th>
+                <th scope="col" class="modificaciones__th">Título del proceso</th>
+                <th scope="col" class="modificaciones__th">
+                  Dependencia / Solicitante
+                </th>
+                <th scope="col" class="modificaciones__th">Fecha solicitud</th>
+                <th scope="col" class="modificaciones__th">Qué se modifica</th>
+                <th scope="col" class="modificaciones__th">Cierre vigente</th>
+                <th scope="col" class="modificaciones__th modificaciones__th--centro">
+                  Estado
+                </th>
+                <th scope="col" class="modificaciones__th modificaciones__th--centro">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fila of modificaciones; track fila.radicado) {
+                <tr class="modificaciones__fila">
+                  <td class="modificaciones__td modificaciones__td--numero">
+                    <button
+                      class="modificaciones__enlace"
+                      type="button"
+                      (click)="abrirProceso(fila)"
+                      [attr.aria-label]="
+                        'Abrir el expediente ' + fila.solicitud.id +
+                        ' de la modificación ' + fila.radicado
+                      "
+                    >
+                      {{ fila.radicado }}
+                    </button>
+                    <span class="modificaciones__subdato">
+                      {{ fila.solicitud.id }} · Vigencia {{ fila.solicitud.vigencia }}
+                    </span>
+                  </td>
+                  <td class="modificaciones__td modificaciones__td--titulo">
+                    <span class="modificaciones__titulo-proceso">
+                      {{ fila.solicitud.titulo }}
+                    </span>
+                    <span class="modificaciones__subdato">
+                      Versión {{ versionDe(fila) }}
+                    </span>
+                  </td>
+                  <td class="modificaciones__td">
+                    <span class="modificaciones__dependencia">
+                      {{ fila.solicitud.dependencia }}
+                    </span>
+                    <span class="modificaciones__subdato">
+                      <mat-icon aria-hidden="true">person</mat-icon>
+                      {{ fila.propuesta.solicitadaPor }}
+                    </span>
+                  </td>
+                  <td class="modificaciones__td modificaciones__td--fecha">
+                    <span>{{ fechaSolicitud(fila) }}</span>
+                    <span class="modificaciones__subdato">
+                      {{ horaSolicitud(fila) }}
+                    </span>
+                  </td>
+                  <td class="modificaciones__td">
+                    <div class="modificaciones__chips">
+                      @if (fila.cambiosItems > 0) {
+                        <span class="chip chip--recto">
+                          <mat-icon aria-hidden="true">inventory_2</mat-icon>
+                          <span>
+                            Ítems ({{ fila.cambiosItems }}
+                            {{ fila.cambiosItems === 1 ? "cambio" : "cambios" }})
+                          </span>
+                        </span>
+                      }
+                      @if (fila.cambiosCierre > 0) {
+                        <span class="chip chip--recto">
+                          <mat-icon aria-hidden="true">update</mat-icon>
+                          <span>Fecha de cierre</span>
+                        </span>
+                      }
+                    </div>
+                    <span class="modificaciones__subdato">
+                      {{ cambiosDe(fila) }}
+                    </span>
+                  </td>
+                  <td class="modificaciones__td modificaciones__td--fecha">
+                    <div class="modificaciones__cierre-bloque">
+                      <span class="modificaciones__fecha-valor">
+                        {{ cierreDe(fila) }}
+                      </span>
+                      <span
+                        class="modificaciones__cierre"
+                        [class.modificaciones__cierre--urgente]="cierreProximo(fila)"
+                      >
+                        {{ etiquetaCierre(fila) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="modificaciones__td modificaciones__td--centro">
+                    <chip-estado [estado]="estadoDe(fila)" />
+                  </td>
+                  <td class="modificaciones__td modificaciones__td--acciones">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      class="modificaciones__boton-acciones"
+                      [class.modificaciones__boton-acciones--activo]="
+                        filaMenuAbierto === fila.radicado
+                      "
+                      [matMenuTriggerFor]="menuAcciones"
+                      [attr.aria-label]="
+                        'Acciones de la modificación ' + fila.radicado
+                      "
+                      (menuOpened)="abrirMenuAcciones(fila.radicado)"
+                      (menuClosed)="cerrarMenuAcciones()"
+                    >
+                      <mat-icon aria-hidden="true" color="primary">
+                        more_vert
+                      </mat-icon>
+                    </button>
+                    <mat-menu
+                      #menuAcciones="matMenu"
+                      panelClass="modificaciones__menu-acciones"
+                      xPosition="before"
+                    >
+                      @for (accion of accionesDe(fila); track accion) {
+                        <button
+                          mat-menu-item
+                          type="button"
+                          (click)="ejecutarAccion(accion, fila)"
+                        >
+                          <mat-icon aria-hidden="true" color="primary">
+                            {{ ACCIONES[accion].icono }}
+                          </mat-icon>
+                          <span>{{ etiquetaAccion(accion) }}</span>
+                        </button>
+                      }
+                    </mat-menu>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="modificaciones__paginador">
+          <div class="modificaciones__paginador-info">
+            <span>Mostrar:</span>
+            <div class="modificaciones__paginador-select">
+              <select
+                [value]="porPagina"
+                (change)="cambiarPorPagina($event)"
+                aria-label="Número de modificaciones por página"
+              >
+                @for (opcion of opcionesPorPagina; track opcion) {
+                  <option [value]="opcion">{{ opcion }}</option>
+                }
+              </select>
+              <mat-icon aria-hidden="true">arrow_drop_down</mat-icon>
+            </div>
+            <span>por página</span>
+          </div>
+
+          <div class="modificaciones__paginador-rango">
+            Mostrando
+            <span class="modificaciones__paginador-valor">{{ rangoInicio }}</span>–<span
+              class="modificaciones__paginador-valor"
+              >{{ rangoFin }}</span
+            >
+            de
+            <span class="modificaciones__paginador-valor">{{ total }}</span>
+            modificaciones
+          </div>
+
+          <nav
+            aria-label="Paginación de modificaciones por aprobar"
+            class="modificaciones__paginador-navegacion"
+          >
+            <button
+              class="modificaciones__paginador-boton"
+              type="button"
+              title="Primera página"
+              [disabled]="pagina === 0"
+              (click)="irAPagina(0)"
+            >
+              <mat-icon aria-hidden="true">first_page</mat-icon>
+            </button>
+            <button
+              class="modificaciones__paginador-boton"
+              type="button"
+              title="Anterior"
+              [disabled]="pagina === 0"
+              (click)="irAPagina(pagina - 1)"
+            >
+              <mat-icon aria-hidden="true">chevron_left</mat-icon>
+            </button>
+            @for (numero of paginasVisibles; track numero) {
+              <button
+                class="modificaciones__paginador-boton modificaciones__paginador-boton--pagina"
+                type="button"
+                [attr.aria-current]="numero === pagina + 1 ? 'page' : null"
+                [attr.aria-label]="'Página ' + numero"
+                [class.modificaciones__paginador-boton--activo]="numero === pagina + 1"
+                (click)="irAPagina(numero - 1)"
+              >
+                {{ numero }}
+              </button>
+            }
+            <button
+              class="modificaciones__paginador-boton"
+              type="button"
+              title="Siguiente"
+              [disabled]="pagina + 1 >= totalPaginas"
+              (click)="irAPagina(pagina + 1)"
+            >
+              <mat-icon aria-hidden="true">chevron_right</mat-icon>
+            </button>
+            <button
+              class="modificaciones__paginador-boton"
+              type="button"
+              title="Última página"
+              [disabled]="pagina + 1 >= totalPaginas"
+              (click)="irAPagina(totalPaginas - 1)"
+            >
+              <mat-icon aria-hidden="true">last_page</mat-icon>
+            </button>
+          </nav>
+        </footer>
+      }
+    </section>
+  </section>
+</plantilla-pagina-contenedora>

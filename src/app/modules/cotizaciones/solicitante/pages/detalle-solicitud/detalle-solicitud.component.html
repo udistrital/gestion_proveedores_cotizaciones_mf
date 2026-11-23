@@ -131,7 +131,7 @@
 
       @if (s.modificacionPendiente; as pendiente) {
         <!--
-          Modificación restringida enviada y aún no aprobada (S-04/S-08).
+          Modificación restringida enviada y aún no resuelta (S-04/S-08).
           El expediente conserva la versión publicada; esta tarjeta informa la
           propuesta en curso para que el usuario sepa que hay un cambio en cola.
         -->
@@ -152,8 +152,8 @@
               modificación con
               <strong>{{ pendiente.cambios }}</strong>
               {{ pendiente.cambios === 1 ? "cambio" : "cambios" }}.
-              El expediente mantiene la versión publicada hasta que la Oficina
-              de Contratación la apruebe.
+              El expediente mantiene la versión publicada hasta que el
+              Ordenador del Gasto la resuelva.
             </p>
             @if (pendiente.justificacion) {
               <p class="pendiente__texto pendiente__justificacion">
@@ -170,10 +170,73 @@
                 <mat-icon aria-hidden="true">badge</mat-icon>
                 <span>{{ pendiente.solicitadaPor }}</span>
               </span>
-              <etiqueta-por-definir
-                texto="Aprobación RF-016 / S-08"
-                detalle="el flujo de aprobación aún no está implementado"
-              ></etiqueta-por-definir>
+              @if (pendiente.radicado) {
+                <span class="chip chip--recto">
+                  <mat-icon aria-hidden="true">drafts</mat-icon>
+                  <span>{{ pendiente.radicado }}</span>
+                </span>
+              }
+              <span class="chip chip--advertencia">
+                <mat-icon aria-hidden="true">pending_actions</mat-icon>
+                <span>En decisión</span>
+              </span>
+            </div>
+          </div>
+        </section>
+      }
+
+      @for (resuelta of s.modificacionesResueltas ?? []; track resuelta.radicado ?? resuelta.version) {
+        <!-- Resultado de la modificación resuelta por el Ordenador (O-04). -->
+        <section
+          class="pendiente"
+          [class.pendiente--aprobada]="resuelta.estado === 'aprobada'"
+          [class.pendiente--rechazada]="resuelta.estado === 'rechazada'"
+          role="status"
+          aria-labelledby="resuelta-titulo-{{ resuelta.radicado }}"
+        >
+          <span class="pendiente__icono" aria-hidden="true">
+            <mat-icon>{{ resuelta.estado === "aprobada" ? "verified" : "cancel" }}</mat-icon>
+          </span>
+          <div class="pendiente__textos">
+            <h3
+              id="resuelta-titulo-{{ resuelta.radicado }}"
+              class="pendiente__titulo"
+            >
+              {{
+                resuelta.estado === "aprobada"
+                  ? "Modificación aprobada"
+                  : "Modificación rechazada"
+              }}
+            </h3>
+            <p class="pendiente__texto">
+              El {{ resuelta.resueltaEl }} el Ordenador del Gasto
+              {{ resuelta.estado === "aprobada" ? "aprobó" : "rechazó" }} la
+              modificación radicada el {{ resuelta.solicitadaEl }}.
+              @if (resuelta.estado === "aprobada") {
+                La solicitud pasó a la versión {{ resuelta.decision.versionVigente }}
+                y el cierre vigente es {{ resuelta.decision.cierreVigente || "el anterior" }}.
+              } @else {
+                El expediente conserva la versión
+                {{ resuelta.decision.versionAnterior }} y sus condiciones originales.
+              }
+            </p>
+            <p class="pendiente__texto pendiente__justificacion">
+              <strong>Decisión:</strong>
+              {{ resuelta.decision.justificacion || "Sin observaciones adicionales." }}
+            </p>
+            <div class="pendiente__chips">
+              <span class="chip chip--recto">
+                <mat-icon aria-hidden="true">badge</mat-icon>
+                <span>{{ resuelta.decision.autor }}</span>
+              </span>
+              <span class="chip chip--recto">
+                <mat-icon aria-hidden="true">schedule</mat-icon>
+                <span>{{ resuelta.decision.fecha }}</span>
+              </span>
+              <span class="chip chip--recto">
+                <mat-icon aria-hidden="true">drafts</mat-icon>
+                <span>{{ resuelta.radicado }}</span>
+              </span>
             </div>
           </div>
         </section>

@@ -337,6 +337,29 @@
   margin-top: 0.75rem;
 }
 
+/* Resultado de una modificación resuelta por el Ordenador del Gasto (O-04). */
+.pendiente--aprobada {
+  border-color: var(--agora-success-border);
+  border-left-color: var(--agora-success);
+  background: var(--agora-success-surface);
+}
+
+.pendiente--aprobada .pendiente__icono,
+.pendiente--aprobada .pendiente__titulo {
+  color: var(--agora-success);
+}
+
+.pendiente--rechazada {
+  border-color: var(--agora-error-border);
+  border-left-color: var(--agora-error);
+  background: var(--agora-error-surface);
+}
+
+.pendiente--rechazada .pendiente__icono,
+.pendiente--rechazada .pendiente__titulo {
+  color: var(--agora-error);
+}
+
 @media (max-width: t.$bp-sm) {
   .pendiente {
     flex-direction: column;

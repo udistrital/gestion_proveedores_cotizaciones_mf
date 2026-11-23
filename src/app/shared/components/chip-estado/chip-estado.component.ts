@@ -1,16 +1,7 @@
 import { Component, Input } from "@angular/core";
 import {
   ESTADOS_CHIP,
-  EstadoActualizacionRespuesta,
-  EstadoEstudioMercado,
-  EstadoInvitacionEstudio,
-  EstadoOferente,
-  EstadoPostulacionProveedor,
-  EstadoSolicitud,
   EstadoSolicitudMeta,
-  EstadoSubsanacion,
-  EstadoSubsanacionOferente,
-  EstadoDocumentoSubsanacionProveedor,
 } from "src/app/core/constants/estados-solicitud.const";
 
 /**
@@ -25,18 +16,7 @@ import {
   standalone: false,
 })
 export class ChipEstadoComponent {
-  @Input({ required: true }) set estado(
-    estado:
-      | EstadoSolicitud
-      | EstadoPostulacionProveedor
-      | EstadoOferente
-      | EstadoSubsanacion
-      | EstadoSubsanacionOferente
-      | EstadoDocumentoSubsanacionProveedor
-      | EstadoEstudioMercado
-      | EstadoInvitacionEstudio
-      | EstadoActualizacionRespuesta,
-  ) {
+  @Input({ required: true }) set estado(estado: keyof typeof ESTADOS_CHIP) {
     this.meta = ESTADOS_CHIP[estado];
   }
 

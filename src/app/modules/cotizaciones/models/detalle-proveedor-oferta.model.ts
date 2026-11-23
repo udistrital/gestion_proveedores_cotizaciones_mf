@@ -33,6 +33,8 @@ import {
 import { esFormatoSoporteOferta } from "./respuesta-proveedor.model";
 import type { SolicitudDetalle } from "./solicitud.model";
 import { formatoTamano } from "./items.model";
+import type { ItemSolicitud } from "./items.model";
+import type { ItemRespuestaProveedor } from "./respuesta-proveedor.model";
 import { estadoSubsanacion, eventoDocumento } from "./subsanacion.model";
 
 /* ── Documentos de la oferta ──────────────────────────────────────────────── */
@@ -125,6 +127,96 @@ export interface DetalleProveedorOferta {
   readonly versionVigente: string;
   readonly fechaLimiteOferta: string | null;
   readonly fechaLimiteOfertaIso: string | null;
+}
+
+/* ── Fila de la tabla de ítems ────────────────────────────────────────────── */
+
+/**
+ * Fila de la tabla de ítems de una oferta, ya calculada.
+ *
+ * La comparten el detalle del proveedor (S-10) y el resumen de la cotización
+ * que abre el ordenador del gasto desde O-02: el descuento de la oferta se
+ * prorratea sobre cada ítem y el IVA se aplica sobre la base gravable, de modo
+ * que ambas pantallas muestran exactamente la misma cifra.
+ */
+export interface FilaItemOferta {
+  readonly item: ItemSolicitud;
+  readonly respuesta: ItemRespuestaProveedor | undefined;
+  readonly valorUnitario: number;
+  readonly subtotal: number;
+  readonly iva: number;
+  readonly total: number;
+  readonly baseGravable: number;
+  readonly etiquetaIva: string;
+  readonly nota: string;
+  readonly superaTecho: boolean;
+}
+
+/** Tasa de IVA declarada por el proveedor en la respuesta. */
+export function tasaIva(tipo: string | undefined): number {
+  switch (tipo) {
+    case "19":
+      return 19;
+    case "5":
+      return 5;
+    default:
+      return 0;
+  }
+}
+
+/** Etiqueta visible del IVA declarado en la respuesta. */
+export function etiquetaIva(tipo: string | undefined): string {
+  switch (tipo) {
+    case "19":
+      return "19%";
+    case "5":
+      return "5%";
+    case "0":
+      return "0%";
+    case "excluido":
+      return "Excluido";
+    case "exento":
+      return "Exento";
+    default:
+      return "—";
+  }
+}
+
+/** Ítems de la oferta con subtotal, descuento prorrateado, IVA y total. */
+export function filasItemsOferta(
+  solicitud: Pick<SolicitudDetalle, "items">,
+  oferta: OfertaComparada,
+): readonly FilaItemOferta[] {
+  const factorDescuento =
+    oferta.subtotal > 0
+      ? oferta.oferta.totales.baseGravable / oferta.subtotal
+      : 1;
+
+  return solicitud.items.map((item) => {
+    const respuesta = oferta.oferta.items.find(
+      (fila) => fila.itemId === item.id,
+    );
+    const valorUnitario = respuesta?.valorUnitario ?? 0;
+    const subtotal = item.cantidad * valorUnitario;
+    const baseGravable = subtotal * factorDescuento;
+    const tasa = tasaIva(respuesta?.iva);
+    const iva = baseGravable * (tasa / 100);
+
+    return {
+      item,
+      respuesta,
+      valorUnitario,
+      subtotal,
+      iva,
+      total: baseGravable + iva,
+      baseGravable,
+      etiquetaIva: etiquetaIva(respuesta?.iva),
+      nota: respuesta?.nota?.trim() || "",
+      superaTecho:
+        item.valorUnitarioTecho != null &&
+        valorUnitario > item.valorUnitarioTecho,
+    };
+  });
 }
 
 /* ── Construcción ─────────────────────────────────────────────────────────── */

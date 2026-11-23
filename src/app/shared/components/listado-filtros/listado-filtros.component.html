@@ -30,6 +30,16 @@
             </mat-select>
           </mat-form-field>
         </div>
+      } @else if (campo.tipo === "fecha") {
+        <div class="campo-filtro">
+          <campo-fecha
+            [name]="campo.clave"
+            [etiqueta]="campo.etiqueta"
+            [requerido]="campo.requerido === true"
+            [placeholder]="campo.placeholder ?? 'dd/mm/aaaa'"
+            [(ngModel)]="valores[campo.clave]"
+          />
+        </div>
       }
     }
   </div>

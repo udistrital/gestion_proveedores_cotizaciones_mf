@@ -1,10 +1,9 @@
 /**
- * Modelo de la decisión de la cotización (S-11).
+ * Modelo de la decisión de la cotización (S-11) y de su validación final (O-03).
  *
  * S-11 registra el **envío a validación** del proveedor seleccionado y su
- * oferta. La aprobación o rechazo final corresponde a las vistas exclusivas del
- * Ordenador del Gasto (O-01 a O-04), que todavía no existen; por eso el modelo
- * deja preparada la fase de validación (`validacion`) pero S-11 no la produce.
+ * oferta. O-03 registra la **aprobación o el rechazo** definitivo del
+ * Ordenador del Gasto.
  *
  * La justificación se guarda en texto plano (para RN-24 y la bitácora) y en
  * HTML sanitizado (para la vista de lectura). El valor y el nombre del
@@ -46,7 +45,7 @@ export interface EnvioDecision {
   readonly notificar: boolean;
 }
 
-/** Datos de la validación final (la producen las vistas futuras del OG). */
+/** Datos de la validación final (los produce O-03). */
 export interface ValidacionDecision {
   readonly resultado: ResultadoValidacion;
   readonly justificacion: string;
@@ -83,6 +82,21 @@ export interface RegistroEnvioDecision {
   readonly proveedorNombre: string;
   readonly valor: number;
   readonly justificacionHtml: string;
+  readonly notificar: boolean;
+  /** Correo del proveedor para el registro simulado de la notificación. */
+  readonly correoProveedor?: string;
+}
+
+/**
+ * Datos que O-03 envía al servicio para registrar la validación final.
+ *
+ * El resultado es único y definitivo (RN-35). La justificación se exige en
+ * ambos sentidos y con el mínimo de RN-24.
+ */
+export interface RegistroValidacionDecision {
+  readonly resultado: ResultadoValidacion;
+  readonly justificacionHtml: string;
+  /** Registra la notificación simulada al proveedor (RF-13). */
   readonly notificar: boolean;
   /** Correo del proveedor para el registro simulado de la notificación. */
   readonly correoProveedor?: string;

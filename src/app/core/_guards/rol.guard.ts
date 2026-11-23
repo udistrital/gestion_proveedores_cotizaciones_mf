@@ -1,6 +1,11 @@
 import { inject } from "@angular/core";
 import { CanActivateFn, CanMatchFn, Router } from "@angular/router";
-import { ROL_PROVEEDOR, ROLES_SOLICITANTE, Rol } from "../constants/roles.const";
+import {
+  ROL_ORDENADOR_DEL_GASTO,
+  ROL_PROVEEDOR,
+  ROLES_SOLICITANTE,
+  Rol,
+} from "../constants/roles.const";
 import { RolService } from "../services/rol.service";
 
 /**
@@ -25,9 +30,11 @@ export const rolGuard: CanMatchFn = async (route) => {
  * Envía la entrada de Cotizaciones al área correspondiente.
  *
  * Primero respeta el área del rol que pidió el Root, si el usuario realmente
- * lo tiene. Sin esa preferencia (por ejemplo, varios roles y el selector de
- * Core no comunica ninguno) se entra al área solicitante, que es el flujo
- * base; la otra área sigue accesible porque `rolGuard` la valida por roles.
+ * lo tiene. El Ordenador del Gasto entra a su bandeja de validación (O-01)
+ * cuando el Root le pide ese rol; sin esa preferencia (por ejemplo, varios
+ * roles y el selector de Core no comunica ninguno) se entra al área
+ * solicitante, que es el flujo base. La otra área sigue accesible porque
+ * `rolGuard` la valida por roles.
  */
 export const entradaCotizacionesGuard: CanActivateFn = async (_route, state) => {
   const servicio = inject(RolService);
@@ -37,19 +44,22 @@ export const entradaCotizacionesGuard: CanActivateFn = async (_route, state) => 
   const preferido = servicio.getRolActivo();
   const puedeSolicitante = servicio.tieneAlgunRol(ROLES_SOLICITANTE);
   const puedeProveedor = servicio.tieneRol(ROL_PROVEEDOR);
+  const puedeOrdenador = servicio.tieneRol(ROL_ORDENADOR_DEL_GASTO);
 
   const destino =
     preferido === ROL_PROVEEDOR && puedeProveedor
       ? ["cotizaciones", "bandeja-solicitudes"]
-      : preferido &&
-          ROLES_SOLICITANTE.includes(preferido) &&
-          puedeSolicitante
-        ? ["cotizaciones", "solicitudes"]
-        : puedeSolicitante
+      : preferido === ROL_ORDENADOR_DEL_GASTO && puedeOrdenador
+        ? ["cotizaciones", "validacion"]
+        : preferido &&
+            ROLES_SOLICITANTE.includes(preferido) &&
+            puedeSolicitante
           ? ["cotizaciones", "solicitudes"]
-          : puedeProveedor
-            ? ["cotizaciones", "bandeja-solicitudes"]
-            : null;
+          : puedeSolicitante
+            ? ["cotizaciones", "solicitudes"]
+            : puedeProveedor
+              ? ["cotizaciones", "bandeja-solicitudes"]
+              : null;
 
   return destino
     ? router.createUrlTree(destino, { queryParams: state.root.queryParams })

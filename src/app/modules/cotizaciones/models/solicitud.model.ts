@@ -2,6 +2,7 @@ import { EstadoSolicitud } from "src/app/core/constants/estados-solicitud.const"
 import type {
   DatosEdicionSolicitud,
   ModificacionPendiente,
+  ModificacionResuelta,
 } from "./edicion-solicitud.model";
 import {
   ContadoresPestanas,
@@ -52,6 +53,8 @@ export interface Solicitud {
   readonly ultimaModificacion?: string;
   /** Modificación restringida enviada y aún no aprobada (S-08). */
   readonly modificacionPendiente?: ModificacionPendiente;
+  /** Modificaciones resueltas por el Ordenador del Gasto (O-04). */
+  readonly modificacionesResueltas?: readonly ModificacionResuelta[];
   /** Registro de cancelación conservado en el expediente. */
   readonly cancelacion?: DatosCancelacionSolicitud;
   /** Cierre para formular observaciones; distinto del cierre de la solicitud. */
@@ -60,6 +63,14 @@ export interface Solicitud {
   readonly decision?: DecisionSolicitud;
   /** Decisiones anteriores cuando se reenvió a validación tras un rechazo. */
   readonly historialDecisiones?: readonly DecisionSolicitud[];
+  /**
+   * Código del ordenador del gasto asignado a la solicitud («ORD-0042»).
+   *
+   * Es independiente del usuario creador y de la dependencia (RN-02): la
+   * bandeja de validación filtra por este código, no por el perfil del
+   * usuario. La representación visible se resuelve en la capa de datos.
+   */
+  readonly ordenadorGastoId?: string;
   /** Último periodo de subsanación configurado (S-12). */
   readonly subsanacion?: Subsanacion | null;
 }

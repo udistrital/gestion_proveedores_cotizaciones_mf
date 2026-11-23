@@ -2,13 +2,12 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  ViewChild,
   computed,
   inject,
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { FormControl, FormGroup, Validators } from "@angular/forms";
-import { MatDialog } from "@angular/material/dialog";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Subscription, interval } from "rxjs";
 import {
@@ -18,16 +17,11 @@ import {
 import { PermisosSolicitudService } from "src/app/core/services/permisos-solicitud.service";
 import { RolService } from "src/app/core/services/rol.service";
 import type { PasoLineaEstados } from "src/app/shared/components/linea-estados/linea-estados.component";
-import {
-  MIN_CARACTERES_JUSTIFICACION,
-  justificacionMinima,
-} from "src/app/shared/validators/justificacion.validator";
 import { ResultadoResolverSolicitud } from "../../../resolvers/solicitud.resolver";
 import {
   faseDecisionSolicitud,
   justificacionFinalDecision,
   type DecisionSolicitud,
-  type RegistroEnvioDecision,
 } from "../../../models/decision.model";
 import type {
   DetalleProveedorOferta,
@@ -43,12 +37,9 @@ import {
   etiquetaUnidadEjecutora,
   type SolicitudDetalle,
 } from "../../../models/solicitud.model";
+import { FichaDecisionComponent } from "../../../components/decision/ficha-decision/ficha-decision.component";
 import { EvaluacionService } from "../../../services/evaluacion.service";
 import { OferentesService } from "../../../services/oferentes.service";
-import {
-  DialogoConfirmarDecisionComponent,
-  type DialogoConfirmarDecisionDatos,
-} from "../../components/dialogo-confirmar-decision/dialogo-confirmar-decision.component";
 
 type EstadoVista =
   | "cargando"
@@ -99,34 +90,23 @@ export class DecisionCotizacionComponent implements OnInit {
   private readonly oferentes = inject(OferentesService);
   private readonly permisos = inject(PermisosSolicitudService);
   private readonly rol = inject(RolService);
-  private readonly dialogo = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
 
+  /** Formulario compartido: conserva la justificación y la confirmación. */
+  @ViewChild(FichaDecisionComponent)
+  ficha?: FichaDecisionComponent;
+
   readonly moneda = formatoCop;
-  readonly minimoJustificacion = MIN_CARACTERES_JUSTIFICACION;
 
   readonly vista = signal<EstadoVista>("cargando");
   readonly mensajeError = signal("");
   readonly solicitud = signal<SolicitudDetalle | null>(null);
   readonly oferta = signal<DetalleProveedorOferta | null>(null);
   readonly decision = signal<DecisionSolicitud | null>(null);
-  readonly enviando = signal(false);
-  readonly errorEnvio = signal("");
   readonly anuncio = signal("");
 
   breadcrumb =
     "<p>Gestión Proveedor › Cotizaciones › <b>Decisión y justificación</b></p>";
-
-  readonly formulario = new FormGroup({
-    justificacion: new FormControl("", {
-      nonNullable: true,
-      validators: [
-        Validators.required,
-        justificacionMinima(MIN_CARACTERES_JUSTIFICACION),
-      ],
-    }),
-    notificar: new FormControl(true, { nonNullable: true }),
-  });
 
   private origen: OrigenDecision = "comparador";
   /** Proveedor que se enviará a validación (viene de S-07/S-09/S-10). */
@@ -412,21 +392,34 @@ export class DecisionCotizacionComponent implements OnInit {
 
   /* ── Envío a validación ────────────────────────────────────────────────── */
 
-  get puedeEnviar(): boolean {
+  /**
+   * Guardas externas del envío: permisos, estado y presupuesto.
+   *
+   * La validez del formulario y el envío los gestiona `FichaDecisionComponent`.
+   */
+  get puedeEnviarExterno(): boolean {
     const solicitud = this.solicitud();
     return (
       !!solicitud &&
       this.vista() === "listo" &&
-      !this.enviando() &&
-      this.formulario.valid &&
       !this.ofertaComparada()?.excedePresupuesto &&
       this.permisos.puedeEnviarAValidacion(solicitud, this.proveedorId)
     );
   }
 
-  get mostrarErrorJustificacion(): boolean {
-    const control = this.formulario.controls.justificacion;
-    return control.invalid && (control.touched || control.dirty);
+  get puedeConfirmar(): boolean {
+    return this.ficha?.puedeGuardar ?? false;
+  }
+
+  alEnviar(actualizada: SolicitudDetalle): void {
+    this.solicitud.set(actualizada);
+    this.decision.set(actualizada.decision ?? null);
+    this.vista.set("enviada");
+    this.anuncio.set("Decisión enviada a validación del Ordenador del Gasto.");
+  }
+
+  confirmarEnvio(): void {
+    this.ficha?.confirmar();
   }
 
   get etiquetaDocumento(): string {
@@ -442,120 +435,6 @@ export class DecisionCotizacionComponent implements OnInit {
     return this.origen === "oferentes"
       ? "Volver al tablero de oferentes"
       : "Volver al comparador (S-09)";
-  }
-
-  marcarJustificacionTocada(): void {
-    this.formulario.controls.justificacion.markAsTouched();
-  }
-
-  enviar(): void {
-    if (this.enviando() || this.vista() !== "listo") {
-      return;
-    }
-
-    this.formulario.markAllAsTouched();
-    const solicitud = this.solicitud();
-    const detalle = this.oferta();
-    if (
-      !solicitud ||
-      !detalle?.oferta ||
-      detalle.oferta.excedePresupuesto ||
-      !this.formulario.valid
-    ) {
-      return;
-    }
-
-    const referencia = this.dialogo.open<
-      DialogoConfirmarDecisionComponent,
-      DialogoConfirmarDecisionDatos,
-      boolean
-    >(DialogoConfirmarDecisionComponent, {
-      data: {
-        solicitudId: solicitud.id,
-        proveedorNombre: detalle.oferente.proveedor.nombre,
-        valor: detalle.oferta.total,
-        notificar: this.formulario.controls.notificar.value,
-      },
-      width: "34rem",
-      maxWidth: "96vw",
-      autoFocus: ".dialogo__cancelar",
-      restoreFocus: true,
-      ariaLabelledBy: "dialogo-decision-titulo",
-      ariaDescribedBy: "dialogo-decision-descripcion",
-    });
-
-    referencia
-      .afterClosed()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((confirmado) => {
-        if (confirmado) {
-          this.ejecutarEnvio(solicitud, detalle);
-        }
-      });
-  }
-
-  reintentarEnvio(): void {
-    const solicitud = this.solicitud();
-    const detalle = this.oferta();
-    if (!solicitud || !detalle || !this.formulario.valid) {
-      return;
-    }
-    this.ejecutarEnvio(solicitud, detalle);
-  }
-
-  private ejecutarEnvio(
-    solicitud: SolicitudDetalle,
-    detalle: DetalleProveedorOferta,
-  ): void {
-    const oferta = detalle.oferta;
-    if (
-      !oferta ||
-      oferta.excedePresupuesto ||
-      !this.permisos.puedeEnviarAValidacion(
-        solicitud,
-        detalle.oferente.proveedor.id,
-      )
-    ) {
-      return;
-    }
-
-    this.errorEnvio.set("");
-    this.enviando.set(true);
-    this.formulario.disable();
-
-    const datos: RegistroEnvioDecision = {
-      invitacionId: detalle.oferente.invitacion.id,
-      proveedorId: detalle.oferente.proveedor.id,
-      proveedorNombre: detalle.oferente.proveedor.nombre,
-      valor: oferta.total,
-      justificacionHtml: this.formulario.controls.justificacion.value,
-      notificar: this.formulario.controls.notificar.value,
-      correoProveedor: oferta.identidad.correo,
-    };
-
-    this.evaluacion
-      .enviarAValidacion(solicitud, datos)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (actualizada) => {
-          this.solicitud.set(actualizada);
-          this.decision.set(actualizada.decision ?? null);
-          this.enviando.set(false);
-          this.formulario.enable();
-          this.vista.set("enviada");
-          this.anuncio.set(
-            "Decisión enviada a validación del Ordenador del Gasto.",
-          );
-        },
-        error: (error: Error) => {
-          this.enviando.set(false);
-          this.formulario.enable();
-          this.errorEnvio.set(
-            error.message ||
-              "No fue posible enviar la decisión a validación. Intente nuevamente.",
-          );
-        },
-      });
   }
 
   /* ── Navegación ────────────────────────────────────────────────────────── */

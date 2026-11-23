@@ -176,13 +176,14 @@ export class EditarSolicitudComponent implements OnInit {
   /**
    * Solicitud de excepción para estados bloqueados.
    *
-   * La matriz de excepciones (RF-016) y la aprobación de S-08 aún no existen;
-   * el botón informa el estado real en vez de simular un flujo inexistente.
+   * La matriz de excepciones (RF-016) aún no existe; las modificaciones
+   * radicadas se resuelven en O-04. El botón informa el estado real en vez de
+   * simular un flujo inexistente.
    */
   solicitarExcepcion(): void {
     void this.alerta.showAlert(
       "Solicitud de excepción",
-      "La modificación de solicitudes ya procesadas se gestiona con la Oficina de Contratación y se habilitará con la matriz de excepciones (RF-016).",
+      "La modificación de solicitudes ya procesadas se gestiona con el Ordenador del Gasto y se habilitará con la matriz de excepciones (RF-016).",
     );
   }
 }

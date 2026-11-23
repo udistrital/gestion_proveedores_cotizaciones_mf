@@ -1,6 +1,9 @@
 import { Injectable } from "@angular/core";
 import { Observable, of, throwError, delay } from "rxjs";
-import { EstadoSolicitud } from "src/app/core/constants/estados-solicitud.const";
+import {
+  EstadoModificacionOrdenador,
+  EstadoSolicitud,
+} from "src/app/core/constants/estados-solicitud.const";
 import {
   ACCIONES_DECISION_POR_ESTADO,
   ACCIONES_SOLICITUD_POR_ESTADO,
@@ -37,9 +40,25 @@ import type {
   EnvioDecision,
   NotificacionDecision,
   RegistroEnvioDecision,
+  RegistroValidacionDecision,
+  ValidacionDecision,
 } from "../models/decision.model";
+import {
+  conteosValidacionesVacios,
+  esMesActual,
+  estadoValidacion,
+  fechaProcesamientoIso,
+} from "../models/validacion-ordenador.model";
+import type {
+  ConteosValidaciones,
+  FiltroValidacionesOrdenador,
+  GrupoFiltroValidacion,
+  ResultadoListadoValidaciones,
+  SolicitudValidacionOrdenador,
+} from "../models/validacion-ordenador.model";
 import type { ResultadoProveedor } from "../models/resultado-proveedor.model";
 import { construirResultadoProveedor } from "../models/resultado-proveedor.model";
+import type { ConsultaValidacionOrdenador } from "../models/resultado-validacion-ordenador.model";
 import {
   CaracteristicasDetalle,
   ContadoresPestanas,
@@ -83,9 +102,12 @@ import {
 } from "../models/proveedores.model";
 import type {
   DatosEdicionSolicitud,
-  ModoEdicionSolicitud,
+  DecisionModificacion,
   ModificacionPendiente,
+  ModificacionResuelta,
+  ModoEdicionSolicitud,
   ResultadoGuardadoSolicitud,
+  ResumenDiferencias,
   VersionEdicionSolicitud,
 } from "../models/edicion-solicitud.model";
 import {
@@ -94,6 +116,19 @@ import {
   siguienteVersionModificacion,
   versionSolicitud,
 } from "../models/edicion-solicitud.model";
+import type {
+  ConteosModificaciones,
+  ConsultaModificacionOrdenador,
+  FiltroModificacionesOrdenador,
+  ModificacionOrdenador,
+  RegistroDecisionModificacion,
+  ResultadoListadoModificaciones,
+} from "../models/modificacion-ordenador.model";
+import {
+  cambiosDelPaso,
+  conteosModificacionesVacios,
+  tipoCambioModificacion,
+} from "../models/modificacion-ordenador.model";
 import type { ResultadoCruce } from "../models/necesidad.model";
 import {
   contarOfertasRecibidasDesde,
@@ -120,7 +155,10 @@ import {
 import { filtrarSubsanacionProveedor } from "../models/subsanacion-proveedor.model";
 import { DiferenciasSolicitudService } from "./diferencias-solicitud.service";
 import { textoPlanoDesdeHtml } from "src/app/shared/utils/texto-plano";
-import { MIN_CARACTERES_JUSTIFICACION } from "src/app/shared/validators/justificacion.validator";
+import {
+  MIN_CARACTERES_JUSTIFICACION,
+  MIN_CARACTERES_MODIFICACION,
+} from "src/app/shared/validators/justificacion.validator";
 
 /**
  * Capa de datos de solicitudes.
@@ -152,12 +190,44 @@ export abstract class SolicitudesService {
   ): Observable<ResultadoListadoInvitaciones>;
 
   /**
+   * Bandeja de validación del Ordenador del Gasto (O-01).
+   *
+   * Devuelve solo solicitudes que cumplen, en la capa de datos:
+   * - tienen una decisión registrada (proveedor seleccionado en S-11);
+   * - están asignadas al ordenador de la sesión (RN-02);
+   * - tienen el periodo de cotización cerrado (RN-29).
+   *
+   * El filtro por ordenador debe resolverlo el backend desde el token en la
+   * implementación HTTP; el componente nunca envía ni elige el ordenador.
+   */
+  abstract listarValidacionesOrdenador(
+    criterios: Partial<FiltroValidacionesOrdenador>,
+    pagina: number,
+    porPagina: number,
+  ): Observable<ResultadoListadoValidaciones>;
+
+  /**
    * Detalle de una solicitud por su identificador.
    *
    * Devuelve `null` cuando la solicitud no existe; la pantalla de detalle
    * traduce ese `null` al estado "solicitud no encontrada".
    */
   abstract obtenerPorId(id: string): Observable<SolicitudDetalle | null>;
+
+  /**
+   * Expediente de una solicitud visto desde la validación del OG (O-02).
+   *
+   * Es el único punto de enlace con el futuro backend para esta pantalla.
+   * Devuelve la solicitud con su decisión cuando está asignada al ordenador de
+   * la sesión (RN-02) y distingue los dos motivos por los que no puede abrirse:
+   * inexistente o asignada a otro despacho.
+   *
+   * No aplica RN-29: una solicitud con el plazo vigente debe poder abrirse para
+   * explicar que la validación aún no está disponible.
+   */
+  abstract obtenerValidacionOrdenador(
+    id: string,
+  ): Observable<ConsultaValidacionOrdenador>;
 
   /** Detalle autorizado de una invitación en el portal del proveedor (P-02). */
   abstract obtenerDetalleProveedor(
@@ -204,6 +274,75 @@ export abstract class SolicitudesService {
     id: string,
     datos: RegistroEnvioDecision,
   ): Observable<SolicitudDetalle>;
+
+  /**
+   * Registra la validación final del Ordenador del Gasto (O-03).
+   *
+   * Es el único punto de escritura de la decisión definitiva. Valida RN-32
+   * (despacho asignado), RN-29 (cierre vencido), RN-24 (mínimo 20), RN-35 (una
+   * sola respuesta) y RN-40 (una oferta sobre el techo no puede aprobarse).
+   *
+   * Deja la solicitud en `adjudicada` o `desierta`, actualiza la invitación
+   * cuando existe y devuelve el expediente para que la vista pase a solo
+   * lectura sin repetir la consulta.
+   */
+  abstract registrarValidacionDecision(
+    id: string,
+    datos: RegistroValidacionDecision,
+  ): Observable<SolicitudDetalle>;
+
+  /**
+   * Bandeja de modificaciones por aprobar (O-04).
+   *
+   * Devuelve las modificaciones pendientes y resueltas de las solicitudes
+   * asignadas al ordenador de la sesión (RN-02). Los filtros, los conteos y la
+   * paginación se resuelven en la capa de datos, igual que en O-01.
+   */
+  abstract listarModificacionesOrdenador(
+    criterios: Partial<FiltroModificacionesOrdenador>,
+    pagina: number,
+    porPagina: number,
+  ): Observable<ResultadoListadoModificaciones>;
+
+  /**
+   * Expediente y propuesta de una modificación por su radicado (`MOD-…`).
+   *
+   * Distingue los dos motivos por los que no puede abrirse: inexistente o
+   * asignada a otro despacho (RN-02).
+   */
+  abstract obtenerModificacionOrdenador(
+    id: string,
+  ): Observable<ConsultaModificacionOrdenador>;
+
+  /**
+   * Registra la decisión del Ordenador del Gasto sobre una modificación (O-04).
+   *
+   * Aprobar aplica la propuesta a una nueva versión del expediente y publica la
+   * adenda de la invitación; rechazar conserva la versión vigente. En ambos
+   * casos deja la decisión en `modificacionesResueltas`, la registra en la
+   * bitácora y valida RN-30/RN-25 (alcance de la modificación).
+   */
+  abstract registrarDecisionModificacion(
+    id: string,
+    datos: RegistroDecisionModificacion,
+  ): Observable<SolicitudDetalle>;
+
+  /**
+   * true si el usuario corresponde al ordenador de la sesión simulada.
+   *
+   * PROVISIONAL: permite detectar el escenario de segregación de funciones
+   * (mismo usuario solicitante y validador) mientras la identidad real llega
+   * del token. El backend debe resolverlo sin exponer el identificador.
+   */
+  abstract esUsuarioOrdenadorSesion(usuario: string): boolean;
+
+  /**
+   * true si el nombre visible corresponde al ordenador de la sesión.
+   *
+   * PROVISIONAL: sirve para advertir la segregación de funciones cuando la
+   * propuesta de modificación la radicó el mismo despacho que debe decidirla.
+   */
+  abstract esSolicitanteOrdenadorSesion(nombre: string): boolean;
 
   /** Periodos de subsanación registrados para una solicitud (S-12). */
   abstract obtenerSubsanaciones(
@@ -341,6 +480,7 @@ function decisionSemilla(
   fase: "aprobada" | "rechazada",
   proveedorId: string,
   proveedorNombre: string,
+  valor: number,
   justificacionEnvio: string,
   justificacionValidacion: string,
   fechaEnvio: string,
@@ -354,7 +494,7 @@ function decisionSemilla(
     invitacionId: `INV-${solicitudId.slice(-4)}-${proveedorId.replace("prov-", "")}`,
     proveedorId,
     proveedorNombre,
-    valor: 0,
+    valor,
     envio: {
       justificacion: justificacionEnvio,
       justificacionHtml: `<p>${justificacionEnvio}</p>`,
@@ -399,6 +539,7 @@ function decisionEnValidacionSemilla(
   solicitudId: string,
   proveedorId: string,
   proveedorNombre: string,
+  valor: number,
   justificacion: string,
   fechaEnvio: string,
   codigo: string,
@@ -410,7 +551,7 @@ function decisionEnValidacionSemilla(
     invitacionId: `INV-${solicitudId.slice(-4)}`,
     proveedorId,
     proveedorNombre,
-    valor: 0,
+    valor,
     envio: {
       justificacion,
       justificacionHtml: `<p>${justificacion}</p>`,
@@ -446,6 +587,11 @@ function decisionEnValidacionSemilla(
  * - `0164`: decisión rechazada del proveedor del portal (P-07 rechazada).
  * - `0166`: solicitud cancelada, sin decisión (P-07 cancelada).
  * - `0167`: oferta enviada a validación (P-07 en validación).
+ *
+ * Los escenarios `0170`–`0178` alimentan la bandeja de validación (O-01):
+ * pendientes, aprobadas y rechazadas del ordenador ORD-0042, una con plazo
+ * vigente (excluida por RN-29) y dos asignadas a otros ordenadores (RN-02).
+ * Las fechas son relativas para que el indicador mensual no se congele.
  */
 const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
   {
@@ -463,6 +609,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 2,
     ultimaModificacion: "21/10/2026 09:15 COT",
     fechaLimiteObservaciones: "2026-10-15T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
   },
   {
     id: "SOL-2026-0161",
@@ -479,11 +626,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 3,
     ultimaModificacion: "24/10/2026 11:20 COT",
     fechaLimiteObservaciones: "2026-10-15T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0161",
       "aprobada",
       "prov-02",
       "Soluciones Tecnológicas Universitarias LTDA",
+      210_051_660,
       "Se selecciona la oferta por cumplir el 100% de las especificaciones técnicas y presentar la mejor relación costo-beneficio.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso.",
       "22/10/2026 14:32 COT",
@@ -506,11 +655,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "25/09/2026 16:40 COT",
     fechaLimiteObservaciones: "2026-09-15T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0162",
       "rechazada",
       "prov-01",
       "Redes y Servidores de Colombia S.A.S.",
+      201_972_750,
       "La oferta no acredita el cumplimiento integral de las especificaciones técnicas ni el plazo de disponibilidad exigido.",
       "Se rechaza la oferta y se declara desierta la convocatoria por incumplimiento de los requisitos habilitantes.",
       "22/09/2026 10:05 COT",
@@ -533,11 +684,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "07/11/2026 09:40 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0163",
       "aprobada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      193_893_840,
       "Se selecciona la oferta por cumplir el 100% de las especificaciones técnicas y presentar la mejor relación costo-beneficio.",
       "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso. Se solicita al proveedor alistar la documentación para la formalización.",
       "06/11/2026 10:15 COT",
@@ -560,11 +713,13 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "04/11/2026 15:05 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionSemilla(
       "SOL-2026-0164",
       "rechazada",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      193_893_840,
       "La oferta cumple las especificaciones técnicas, pero la validación documental identificó inconsistencias en los soportes habilitantes.",
       "Se rechaza la cotización por inconsistencias documentales en los soportes habilitantes. La desestimación no genera inhabilidad para futuros procesos de selección.",
       "04/11/2026 10:20 COT",
@@ -587,6 +742,7 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "29/10/2026 08:30 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     cancelacion: {
       estadoAnterior: "en-evaluacion",
       justificacion:
@@ -613,14 +769,358 @@ const SOLICITUDES_DECISION_MOCK: readonly Solicitud[] = [
     revision: 1,
     ultimaModificacion: "07/11/2026 11:20 COT",
     fechaLimiteObservaciones: "2026-10-10T18:00:00-05:00",
+    ordenadorGastoId: "ORD-0042",
     decision: decisionEnValidacionSemilla(
       "SOL-2026-0167",
       "prov-28",
       "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      193_893_840,
       "Se envía la oferta seleccionada a validación del Ordenador del Gasto por cumplir los requisitos técnicos y presupuestales.",
       "07/11/2026 11:20 COT",
       "SIGA-2026-DEC-99853",
     ),
+  },
+  {
+    id: "SOL-2026-0170",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo:
+      "Adquisición de servidores blade de alta densidad y almacenamiento SAN para la Red de Investigaciones RITA",
+    apertura: fechaCortaRelativa(-12),
+    cierre: fechaCortaRelativa(-3),
+    dependencia: "Laboratorios de Telemática",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 14:30 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-6),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0170",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      193_893_840,
+      "Se revisaron tres cotizaciones dentro del plazo. La oferta cumple el 100% de las especificaciones de latencia y respaldo y presenta el menor costo.",
+      `${fechaCortaRelativa(-1)} 14:30 COT`,
+      "SIGA-2026-DEC-99860",
+    ),
+  },
+  {
+    id: "SOL-2026-0171",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo:
+      "Mantenimiento preventivo y correctivo especializado a Data Center Central",
+    apertura: fechaCortaRelativa(-11),
+    cierre: fechaCortaRelativa(-2),
+    dependencia: "Dirección de TI / Redes",
+    tipoCotizacion: "SERVICIO",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 10:15 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-6),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0171",
+      "prov-01",
+      "Redes y Servidores de Colombia S.A.S.",
+      201_972_750,
+      "La oferta cubre el alcance del mantenimiento y el plazo de respuesta exigido; se remite para la validación del ordenador.",
+      `${fechaCortaRelativa(-1)} 10:15 COT`,
+      "SIGA-2026-DEC-99861",
+    ),
+  },
+  {
+    id: "SOL-2026-0172",
+    vigencia: 2026,
+    unidadEjecutora: "4",
+    titulo:
+      "Suministro de reactivos químicos y material de vidrio para docencia e investigación",
+    apertura: fechaCortaRelativa(-16),
+    cierre: fechaCortaRelativa(-8),
+    dependencia: "Laboratorio de Química Sede Macarena",
+    tipoCotizacion: "BIEN",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-4)} 09:10 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-12),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0172",
+      "aprobada",
+      "prov-02",
+      "Soluciones Tecnológicas Universitarias LTDA",
+      210_051_660,
+      "La oferta cumple las fichas técnicas y acredita la experiencia exigida para el suministro de reactivos.",
+      "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-6)} 16:45 COT`,
+      `${fechaCortaRelativa(-4)} 09:10 COT`,
+      "SIGA-2026-DEC-99862",
+    ),
+  },
+  {
+    id: "SOL-2026-0173",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo:
+      "Adecuación acústica y sonorización Auditorio Mayor Sabio Caldas",
+    apertura: fechaCortaRelativa(-20),
+    cierre: fechaCortaRelativa(-10),
+    dependencia: "Decanatura Ingeniería",
+    tipoCotizacion: "BIEN_Y_SERVICIO",
+    estado: "desierta",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-6)} 11:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-14),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0173",
+      "rechazada",
+      "prov-03",
+      "DataCloud Andina S.A.S.",
+      218_130_570,
+      "La oferta no acredita la experiencia específica en adecuación acústica exigida en los requisitos habilitantes.",
+      "Se rechaza la cotización y se devuelve al solicitante con observaciones técnicas.",
+      `${fechaCortaRelativa(-7)} 15:10 COT`,
+      `${fechaCortaRelativa(-6)} 11:00 COT`,
+      "SIGA-2026-DEC-99863",
+    ),
+  },
+  {
+    id: "SOL-2026-0174",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo:
+      "Póliza integral de seguros y respaldo patrimonial de bienes universitarios",
+    apertura: fechaCortaRelativa(-24),
+    cierre: fechaCortaRelativa(-12),
+    dependencia: "Oficina Asesora Jurídica",
+    tipoCotizacion: "SERVICIO",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-8)} 10:30 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-18),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0174",
+      "aprobada",
+      "prov-02",
+      "Soluciones Tecnológicas Universitarias LTDA",
+      210_051_660,
+      "La póliza cumple las coberturas mínimas y el respaldo patrimonial solicitado por la Oficina Asesora Jurídica.",
+      "Se ratifica la selección de la oferta por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-9)} 12:00 COT`,
+      `${fechaCortaRelativa(-8)} 10:30 COT`,
+      "SIGA-2026-DEC-99864",
+    ),
+  },
+  {
+    id: "SOL-2026-0175",
+    vigencia: 2026,
+    unidadEjecutora: "4",
+    titulo:
+      "Equipamiento audiovisual para aulas inteligentes y talleres de creación",
+    apertura: fechaCortaRelativa(-28),
+    cierre: fechaCortaRelativa(-14),
+    dependencia: "Decanatura ASAB",
+    tipoCotizacion: "BIEN",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-10)} 09:45 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-20),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionSemilla(
+      "SOL-2026-0175",
+      "aprobada",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      193_893_840,
+      "La oferta cumple las especificaciones técnicas y el plan de instalación en los talleres de creación.",
+      "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-11)} 17:20 COT`,
+      `${fechaCortaRelativa(-10)} 09:45 COT`,
+      "SIGA-2026-DEC-99865",
+    ),
+  },
+  /*
+   * RN-29: el periodo de cotización sigue vigente, así que la solicitud no
+   * aparece en la bandeja aunque tenga una decisión registrada. Es un
+   * escenario artificial para comprobar el filtro.
+   */
+  {
+    id: "SOL-2026-0176",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo: "Renovación de licencias de seguridad perimetral",
+    apertura: fechaCortaRelativa(-5),
+    cierre: fechaCortaRelativa(12),
+    dependencia: "División de TI",
+    tipoCotizacion: "SERVICIO",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 08:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(8),
+    ordenadorGastoId: "ORD-0042",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0176",
+      "prov-01",
+      "Redes y Servidores de Colombia S.A.S.",
+      201_972_750,
+      "Escenario de prueba: el plazo sigue vigente y la validación no debe habilitarse antes del cierre.",
+      `${fechaCortaRelativa(-1)} 08:00 COT`,
+      "SIGA-2026-DEC-99866",
+    ),
+  },
+  /* RN-02: asignada a otro ordenador; no debe aparecer en la bandeja. */
+  {
+    id: "SOL-2026-0177",
+    vigencia: 2026,
+    unidadEjecutora: "2",
+    titulo: "Suministro de mobiliario para salas de estudio",
+    apertura: fechaCortaRelativa(-18),
+    cierre: fechaCortaRelativa(-6),
+    dependencia: "IDEXUD",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-5)} 15:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-12),
+    ordenadorGastoId: "ORD-0061",
+    decision: decisionEnValidacionSemilla(
+      "SOL-2026-0177",
+      "prov-02",
+      "Soluciones Tecnológicas Universitarias LTDA",
+      210_051_660,
+      "Escenario de prueba: la solicitud pertenece a otro ordenador del gasto.",
+      `${fechaCortaRelativa(-5)} 15:00 COT`,
+      "SIGA-2026-DEC-99867",
+    ),
+  },
+  {
+    id: "SOL-2026-0178",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo: "Mantenimiento de equipos de laboratorio de electrónica",
+    apertura: fechaCortaRelativa(-22),
+    cierre: fechaCortaRelativa(-9),
+    dependencia: "Facultad de Ingeniería",
+    tipoCotizacion: "BIEN",
+    estado: "adjudicada",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-7)} 10:00 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-16),
+    ordenadorGastoId: "ORD-0058",
+    decision: decisionSemilla(
+      "SOL-2026-0178",
+      "aprobada",
+      "prov-28",
+      "Sistemas & Soluciones Tecnológicas de Colombia S.A.S.",
+      193_893_840,
+      "Escenario de prueba: la solicitud pertenece a otro ordenador del gasto.",
+      "Se aprueba la cotización por cumplir los requisitos técnicos y presupuestales del proceso.",
+      `${fechaCortaRelativa(-9)} 14:00 COT`,
+      `${fechaCortaRelativa(-7)} 10:00 COT`,
+      "SIGA-2026-DEC-99868",
+    ),
+  },
+  /*
+   * Escenarios de O-04 (modificaciones por aprobar). La propuesta y la
+   * resolución viven en `MODIFICACIONES_SEMILLA`: aquí solo se declara la fila
+   * del expediente para no duplicar la fotografía editable.
+   */
+  {
+    id: "SOL-2026-0180",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo:
+      "Adquisición de cableado estructurado y puntos de red para el datacenter Paiba",
+    apertura: fechaCortaRelativa(-10),
+    cierre: fechaCortaRelativa(1),
+    dependencia: "DIRTEI - División de Recursos Tecnológicos e Informáticos",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 09:45 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-4),
+    ordenadorGastoId: "ORD-0042",
+  },
+  {
+    id: "SOL-2026-0181",
+    vigencia: 2026,
+    unidadEjecutora: "1",
+    titulo:
+      "Mantenimiento preventivo de subestaciones eléctricas de los campus Macarena y Vivero",
+    apertura: fechaCortaRelativa(-18),
+    cierre: fechaCortaRelativa(-3),
+    dependencia: "Oficina de Infraestructura y Servicios",
+    tipoCotizacion: "SERVICIO",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-2)} 16:20 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-9),
+    ordenadorGastoId: "ORD-0042",
+  },
+  {
+    id: "SOL-2026-0182",
+    vigencia: 2026,
+    unidadEjecutora: "4",
+    titulo:
+      "Suministro de reactivos químicos y material de laboratorio para docencia",
+    apertura: fechaCortaRelativa(-20),
+    cierre: fechaCortaRelativa(-2),
+    dependencia: "Facultad de Ciencias y Educación",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-6)} 14:30 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-10),
+    ordenadorGastoId: "ORD-0042",
+  },
+  {
+    id: "SOL-2026-0183",
+    vigencia: 2026,
+    unidadEjecutora: "3",
+    titulo:
+      "Licenciamiento de software para simulación estructural de ingeniería",
+    apertura: fechaCortaRelativa(-15),
+    cierre: fechaCortaRelativa(6),
+    dependencia: "Facultad de Ingeniería",
+    tipoCotizacion: "SERVICIO",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-4)} 11:05 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-7),
+    ordenadorGastoId: "ORD-0042",
+  },
+  /* RN-02: pertenece a otro despacho; no debe aparecer en la bandeja. */
+  {
+    id: "SOL-2026-0184",
+    vigencia: 2026,
+    unidadEjecutora: "2",
+    titulo: "Suministro de mobiliario para salas de estudio de la sede Macarena",
+    apertura: fechaCortaRelativa(-12),
+    cierre: fechaCortaRelativa(-2),
+    dependencia: "IDEXUD",
+    tipoCotizacion: "BIEN",
+    estado: "en-aprobacion",
+    version: "v1.0",
+    revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-2)} 08:15 COT`,
+    fechaLimiteObservaciones: fechaLimiteRelativa(-6),
+    ordenadorGastoId: "ORD-0061",
   },
 ];
 
@@ -715,6 +1215,7 @@ const DATOS_MOCK: readonly Solicitud[] = [
     version: "v1.0",
     revision: 1,
     ultimaModificacion: "19/02/2026 15:05 COT",
+    ordenadorGastoId: "ORD-0042",
   },
   {
     id: "SOL-2026-0039",
@@ -900,6 +1401,159 @@ const DATOS_MOCK: readonly Solicitud[] = [
   ...SOLICITUDES_DECISION_MOCK,
 ];
 
+/* ─────────────── Modificaciones de demostración (O-04) ─────────────── */
+
+/** Cambio puntual aplicado a un ítem del pliego en una semilla. */
+interface CambioItemSemilla {
+  readonly id: string;
+  readonly nombre?: string;
+  readonly descripcion?: string;
+  readonly cantidad?: number;
+  readonly unidad?: string;
+}
+
+/** Resolución ya registrada de una modificación de demostración. */
+interface ResolucionSemilla {
+  /** Fecha visible `dd/MM/yyyy HH:mm COT`. */
+  readonly fecha: string;
+  readonly justificacion: string;
+  readonly notificados?: number;
+}
+
+/**
+ * Semilla compacta de una modificación.
+ *
+ * `valores` se construye en el constructor del servicio con
+ * `datosEdicionDesdeDetalle`, de modo que las semillas no repiten la fotografía
+ * completa del expediente (ítems, contratación, documentos…).
+ */
+interface ModificacionSemilla {
+  readonly solicitudId: string;
+  readonly radicado: string;
+  readonly estado: EstadoModificacionOrdenador;
+  readonly solicitadaEl: string;
+  readonly solicitadaPor: string;
+  readonly justificacion: string;
+  /** Nuevo cierre en ISO `yyyy-MM-dd`, si la propuesta lo modifica. */
+  readonly cierreIso?: string;
+  readonly items?: readonly CambioItemSemilla[];
+  readonly resolucion?: ResolucionSemilla;
+}
+
+/**
+ * Escenarios de O-04.
+ *
+ * - `0041`: ítems + cierre (la demo histórica de S-08).
+ * - `0180`: solo ítems, cierre próximo (indicador «Urgente»).
+ * - `0181`: solo fecha de cierre, ya cerrada.
+ * - `0182`: aprobada (versión nueva + adenda).
+ * - `0183`: rechazada (versión intacta).
+ * - `0184`: pendiente de otro despacho (RN-02).
+ * - `0136`: extremo a extremo con el portal del proveedor (P-02/P-05).
+ *
+ * PROVISIONAL: las fechas son relativas para que la bandeja no caduque y el
+ * indicador mensual siga funcionando.
+ */
+const MODIFICACIONES_SEMILLA: readonly ModificacionSemilla[] = [
+  {
+    solicitudId: "SOL-2026-0041",
+    radicado: "MOD-2026-0041",
+    estado: "por-aprobar",
+    solicitadaEl: "19/02/2026 15:05 COT",
+    solicitadaPor: "Raúl Quimbaya",
+    justificacion:
+      "Ajuste de la fecha de cierre y de la cantidad del primer ítem por actualización de la necesidad radicada en SICAPITAL.",
+    cierreIso: "2026-02-27",
+    items: [{ id: "1", cantidad: 4 }],
+  },
+  {
+    solicitudId: "SOL-2026-0180",
+    radicado: "MOD-2026-0180",
+    estado: "por-aprobar",
+    solicitadaEl: `${fechaCortaRelativa(-1)} 09:45 COT`,
+    solicitadaPor: "Ing. Carlos J. González Pardo",
+    justificacion:
+      "Se requiere ampliar el cableado estructurado a 55 puntos Cat 6A blindados para cumplir la certificación TIA-942 del datacenter Paiba, conforme a las observaciones técnicas del foro.",
+    items: [
+      {
+        id: "4",
+        descripcion:
+          "Certificación Categoría 6A blindado F/UTP en 55 puntos de red para laboratorio Sala 304 y datacenter Paiba, con certificación Fluke y rotulado ANSI/TIA-606-B.",
+      },
+    ],
+  },
+  {
+    solicitudId: "SOL-2026-0181",
+    radicado: "MOD-2026-0181",
+    estado: "por-aprobar",
+    solicitadaEl: `${fechaCortaRelativa(-2)} 16:20 COT`,
+    solicitadaPor: "Ing. Ricardo Forero",
+    justificacion:
+      "Se solicita ampliar el plazo de recepción de ofertas para permitir la calibración de la matriz de compatibilidad eléctrica de las subestaciones.",
+    cierreIso: fechaIsoDesdeCorta(fechaCortaRelativa(5)),
+  },
+  {
+    solicitudId: "SOL-2026-0182",
+    radicado: "MOD-2026-0182",
+    estado: "aprobada",
+    solicitadaEl: `${fechaCortaRelativa(-6)} 14:30 COT`,
+    solicitadaPor: "Dra. Claudia Méndez",
+    justificacion:
+      "Ajuste de cantidades de reactivos y ampliación del cierre para atender las prácticas de laboratorio del semestre en curso.",
+    cierreIso: fechaIsoDesdeCorta(fechaCortaRelativa(4)),
+    items: [{ id: "3", cantidad: 6 }],
+    resolucion: {
+      fecha: `${fechaCortaRelativa(-2)} 10:20 COT`,
+      justificacion:
+        "Se aprueba la modificación por responder a una necesidad docente verificada y mantener la disponibilidad presupuestal del proceso.",
+      notificados: 4,
+    },
+  },
+  {
+    solicitudId: "SOL-2026-0183",
+    radicado: "MOD-2026-0183",
+    estado: "rechazada",
+    solicitadaEl: `${fechaCortaRelativa(-4)} 11:05 COT`,
+    solicitadaPor: "Ing. Alberto Ramos",
+    justificacion:
+      "Cambio de la ficha técnica del licenciamiento para incluir módulos de análisis no lineales.",
+    items: [
+      {
+        id: "2",
+        descripcion:
+          "Suscripción por 12 meses con soporte oficial 24x7 y módulos de análisis no lineales para 64 zócalos físicos institucionales.",
+      },
+    ],
+    resolucion: {
+      fecha: `${fechaCortaRelativa(-3)} 09:15 COT`,
+      justificacion:
+        "No se evidencia soporte presupuestal para ampliar el alcance del licenciamiento solicitado; se mantienen las condiciones vigentes del pliego.",
+      notificados: 1,
+    },
+  },
+  {
+    solicitudId: "SOL-2026-0184",
+    radicado: "MOD-2026-0184",
+    estado: "por-aprobar",
+    solicitadaEl: `${fechaCortaRelativa(-2)} 08:15 COT`,
+    solicitadaPor: "Ing. Gloria Esperanza Useche",
+    justificacion:
+      "Ajuste de la fecha de cierre para completar la recepción de ofertas del mobiliario requerido por la sede Macarena.",
+    cierreIso: fechaIsoDesdeCorta(fechaCortaRelativa(3)),
+  },
+  {
+    solicitudId: "SOL-2026-0136",
+    radicado: "MOD-2026-0136",
+    estado: "por-aprobar",
+    solicitadaEl: `${fechaCortaRelativa(-1)} 10:10 COT`,
+    solicitadaPor: "Jefe de División de Planta Física",
+    justificacion:
+      "Se amplía el alcance del mantenimiento preventivo y la fecha de cierre para incluir los equipos del bloque B, conforme al inventario actualizado.",
+    cierreIso: fechaIsoDesdeCorta(fechaCortaRelativa(6)),
+    items: [{ id: "4", cantidad: 55 }],
+  },
+];
+
 /**
  * Solicitudes sintéticas exclusivas de la bandeja del proveedor. Se mantienen
  * fuera de DATOS_MOCK para no alterar el listado del solicitante (S-01).
@@ -994,10 +1648,12 @@ const SOLICITUDES_PROVEEDOR_MOCK: readonly Solicitud[] = [
     cierre: fechaCortaRelativa(4),
     dependencia: "División de Planta Física",
     tipoCotizacion: "SERVICIO",
-    estado: "enviada-proveedores",
+    estado: "en-aprobacion",
     fechaLimiteObservaciones: fechaLimiteRelativa(2),
     version: "v1.0",
     revision: 1,
+    ultimaModificacion: `${fechaCortaRelativa(-1)} 10:10 COT`,
+    ordenadorGastoId: "ORD-0042",
   },
   {
     id: "SOL-2026-0135",
@@ -1788,6 +2444,34 @@ const RESPONSABLE_MOCK: ResponsableDetalle = {
 };
 
 /**
+ * Catálogo de ordenadores del gasto de la semilla.
+ *
+ * PROVISIONAL: los códigos y nombres replican el cruce de SICAPITAL del
+ * asistente (ORD-0042 Rectoría, ORD-0061 Facultad Tecnológica, ORD-0058
+ * Facultad de Ingeniería). Cuando exista el backend, el nombre y la asignación
+ * vendrán de la consulta de la solicitud.
+ */
+const ORDENADORES_GASTO_MOCK: Readonly<Record<string, string>> = {
+  "ORD-0042": "ORD-0042 - Dr. Ricardo Gómez Morales",
+  "ORD-0058": "ORD-0058 - Ing. Jaime Alberto Rodríguez",
+  "ORD-0061": "ORD-0061 - Ing. Gloria Esperanza Useche",
+};
+
+/**
+ * Ordenador de la sesión simulada.
+ *
+ * PROVISIONAL: la sesión actual expone roles, no la identidad de la persona.
+ * La implementación HTTP debe obtener este código del token/backend; el
+ * componente nunca lo envía.
+ */
+const ORDENADOR_GASTO_SESION_MOCK = {
+  id: "ORD-0042",
+  nombre: "Dr. Ricardo Gómez Morales",
+  usuario: "rgomez",
+  rol: "Ordenador del Gasto",
+} as const;
+
+/**
  * Borradores que ya tienen expediente técnico cargado.
  *
  * La solicitud de referencia de S-04 (`SOL-2026-0047`) es un borrador real: ya
@@ -1847,7 +2531,15 @@ function generalDetalle(solicitud: Solicitud): GeneralDetalle {
     aprobacion: "Aprobación Consejo Superior: Acuerdo 012 de 2024",
   };
 
-  return { responsable: RESPONSABLE_MOCK, caracteristicas, planAccion };
+  const ordenadorGasto =
+    ORDENADORES_GASTO_MOCK[solicitud.ordenadorGastoId ?? ""] ??
+    RESPONSABLE_MOCK.ordenadorGasto;
+
+  return {
+    responsable: { ...RESPONSABLE_MOCK, ordenadorGasto },
+    caracteristicas,
+    planAccion,
+  };
 }
 
 /**
@@ -1935,6 +2627,15 @@ const CDP_POR_SOLICITUD: Readonly<Record<string, number>> = {
   "SOL-2026-0165": 320_000_000,
   "SOL-2026-0168": 320_000_000,
   "SOL-2026-0169": 320_000_000,
+  "SOL-2026-0170": 320_000_000,
+  "SOL-2026-0171": 320_000_000,
+  "SOL-2026-0172": 320_000_000,
+  "SOL-2026-0173": 320_000_000,
+  "SOL-2026-0174": 320_000_000,
+  "SOL-2026-0175": 320_000_000,
+  "SOL-2026-0176": 320_000_000,
+  "SOL-2026-0177": 320_000_000,
+  "SOL-2026-0178": 320_000_000,
 };
 
 /**
@@ -2903,6 +3604,49 @@ function eventoValidacionDecision(
     evidencia: {
       icono: "campaign",
       texto: "Notificación al proveedor simulada (RF-13)",
+    },
+  });
+}
+
+/**
+ * Evento de bitácora de la decisión sobre una modificación (O-04).
+ *
+ * Se deriva de la resolución —igual que la validación de O-03— para que el
+ * evento sobreviva a una recarga y no dependa de un arreglo de sesión.
+ */
+function eventoDecisionModificacion(
+  solicitudId: string,
+  resolucion: ModificacionResuelta,
+): EventoHistorial {
+  const decision = resolucion.decision;
+  const { fecha, hora } = partesFechaHora(decision.fecha);
+  const aprobada = decision.resultado === "aprobada";
+  const estadoAnterior = resolucion.estadoAnterior ?? "enviada-proveedores";
+  return eventoHistorial({
+    id: `evento-${solicitudId}-modificacion-${resolucion.radicado ?? resolucion.version}`,
+    fecha,
+    hora,
+    tipo: "modificacion",
+    titulo: aprobada
+      ? "Modificación aprobada por el Ordenador del Gasto"
+      : "Solicitud de modificación rechazada",
+    detalle: `Resultado: <strong>${aprobada ? "Aprobada" : "Rechazada"}</strong>. ${escaparHtml(
+      decision.justificacion || "Sin observaciones adicionales.",
+    )}`,
+    usuario: decision.usuario,
+    nombreUsuario: decision.autor,
+    rol: decision.rol,
+    estadoAnterior,
+    estadoNuevo: aprobada ? "enviada-con-modificaciones" : estadoAnterior,
+    icono: aprobada ? "edit_calendar" : "cancel",
+    tono: "destacado",
+    resultado: aprobada ? "Adenda emitida" : "Modificación rechazada",
+    tonoResultado: aprobada ? "exito" : "advertencia",
+    evidencia: {
+      icono: "campaign",
+      texto: aprobada
+        ? "Adenda y notificación a oferentes simuladas (RF-13)"
+        : "Notificación al solicitante simulada (RF-13)",
     },
   });
 }
@@ -4051,6 +4795,18 @@ export class SolicitudesServiceMock extends SolicitudesService {
   >();
   private readonly invitacionesActualizadas = new Map<string, InvitacionProveedor>();
 
+  /** Propuestas de demostración de O-04 por solicitud. */
+  private readonly modificacionesPendientesDemo = new Map<
+    string,
+    ModificacionPendiente
+  >();
+
+  /** Resoluciones de demostración de O-04 por solicitud. */
+  private readonly modificacionesResueltasDemo = new Map<
+    string,
+    readonly ModificacionResuelta[]
+  >();
+
   /** Periodos de subsanación por solicitud, del más antiguo al más reciente. */
   private readonly subsanaciones = new Map<string, readonly Subsanacion[]>();
 
@@ -4059,6 +4815,7 @@ export class SolicitudesServiceMock extends SolicitudesService {
     for (const [solicitudId, periodos] of Object.entries(SUBSANACIONES_MOCK)) {
       this.subsanaciones.set(solicitudId, periodos);
     }
+    this.prepararModificacionesDemo();
   }
 
   listar(
@@ -4139,7 +4896,12 @@ export class SolicitudesServiceMock extends SolicitudesService {
         if (!solicitudBase) {
           return [];
         }
-        const solicitud = solicitudProveedorVigente(invitacion, solicitudBase);
+        const solicitudVigente =
+          this.filasEditadas.get(solicitudBase.id) ?? solicitudBase;
+        const solicitud = solicitudProveedorVigente(
+          invitacion,
+          solicitudVigente,
+        );
         return [
           {
             invitacion,
@@ -4189,6 +4951,178 @@ export class SolicitudesServiceMock extends SolicitudesService {
     }).pipe(delay(retardo));
   }
 
+  /**
+   * Bandeja de validación del Ordenador del Gasto (O-01).
+   *
+   * Trucos de desarrollo (query params, sin tocar código):
+   * - `?mockValidaciones=error` → falla la consulta.
+   * - `?mockValidaciones=vacio` → bandeja sin registros.
+   * - `?mockRetardo=2500` → retardo en ms.
+   *
+   * PROVISIONAL: el ordenador de la sesión es la constante
+   * `ORDENADOR_GASTO_SESION_MOCK`; el backend debe resolverlo desde el token.
+   */
+  listarValidacionesOrdenador(
+    criterios: Partial<FiltroValidacionesOrdenador>,
+    pagina: number,
+    porPagina: number,
+  ): Observable<ResultadoListadoValidaciones> {
+    const params = new URLSearchParams(window.location.search);
+    const modo = params.get("mockValidaciones");
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (modo === "error") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible consultar las solicitudes pendientes de validación.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (modo === "vacio") {
+      return of({
+        validaciones: [],
+        total: 0,
+        conteos: conteosValidacionesVacios(),
+        dependencias: [],
+      }).pipe(delay(retardo));
+    }
+
+    const filas = DATOS_MOCK.map(
+      (solicitud) => this.filasEditadas.get(solicitud.id) ?? solicitud,
+    ).flatMap((solicitud) => {
+      const fila = this.filaValidacion(solicitud);
+      return fila ? [fila] : [];
+    });
+
+    const base = filas.filter((fila) =>
+      this.coincideValidacion(fila, criterios),
+    );
+    const conteos = contarValidaciones(base);
+    const filtradas = base.filter(
+      (fila) =>
+        !criterios.estadoValidacion ||
+        estadoValidacion(fila) === criterios.estadoValidacion,
+    );
+    // PROVISIONAL: el mockup ordena por número descendente; el criterio
+    // definitivo sigue abierto.
+    const factor = criterios.ordenNumero === "asc" ? 1 : -1;
+    const ordenadas = [...filtradas].sort(
+      (a, b) => factor * a.solicitud.id.localeCompare(b.solicitud.id),
+    );
+    const desde = pagina * porPagina;
+
+    return of({
+      validaciones: ordenadas.slice(desde, desde + porPagina),
+      total: ordenadas.length,
+      conteos,
+      dependencias: [
+        ...new Set(filas.map((fila) => fila.solicitud.dependencia)),
+      ].sort((a, b) => a.localeCompare(b, "es-CO")),
+    }).pipe(delay(retardo));
+  }
+
+  /**
+   * Proyecta una solicitud a la fila de validación, o `null` si no aplica.
+   *
+   * RN-02: solo las asignadas al ordenador de la sesión.
+   * RN-29: solo cuando el periodo de cotización terminó.
+   * Sin decisión no hay proveedor seleccionado que mostrar.
+   */
+  private filaValidacion(
+    solicitud: Solicitud,
+  ): SolicitudValidacionOrdenador | null {
+    const decision = solicitud.decision;
+    if (
+      !decision ||
+      solicitud.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id ||
+      !cierreSolicitudVencido(solicitud.cierre)
+    ) {
+      return null;
+    }
+
+    const proveedor = PROVEEDORES_MOCK.find(
+      (item) => item.id === decision.proveedorId,
+    );
+    const invitacion =
+      this.invitacionesActualizadas.get(solicitud.id) ??
+      INVITACIONES_PROVEEDOR_MOCK.find(
+        (item) => item.id === decision.invitacionId,
+      ) ??
+      null;
+
+    return {
+      solicitud,
+      decision,
+      proveedor: {
+        id: decision.proveedorId,
+        nombre: decision.proveedorNombre,
+        nit: proveedor?.nit ?? null,
+      },
+      invitacion,
+    };
+  }
+
+  private coincideValidacion(
+    fila: SolicitudValidacionOrdenador,
+    criterios: Partial<FiltroValidacionesOrdenador>,
+  ): boolean {
+    const {
+      vigencia,
+      unidadEjecutora,
+      tipoCotizacion,
+      dependencia,
+      busqueda,
+      desde,
+      hasta,
+    } = criterios;
+
+    if (vigencia && vigencia !== "historico") {
+      if (String(fila.solicitud.vigencia) !== vigencia) {
+        return false;
+      }
+    }
+
+    if (
+      unidadEjecutora &&
+      fila.solicitud.unidadEjecutora !== unidadEjecutora
+    ) {
+      return false;
+    }
+
+    if (tipoCotizacion && fila.solicitud.tipoCotizacion !== tipoCotizacion) {
+      return false;
+    }
+
+    if (dependencia && fila.solicitud.dependencia !== dependencia) {
+      return false;
+    }
+
+    const texto = busqueda?.trim().toLowerCase();
+    if (texto) {
+      const coincide = [
+        fila.solicitud.id,
+        fila.solicitud.titulo,
+        fila.proveedor.nombre,
+        fila.proveedor.nit ?? "",
+      ].some((valor) => valor.toLowerCase().includes(texto));
+      if (!coincide) {
+        return false;
+      }
+    }
+
+    const fecha = fechaProcesamientoIso(fila.decision.envio.fecha);
+    if (desde && (!fecha || fecha < desde)) {
+      return false;
+    }
+    if (hasta && (!fecha || fecha > hasta)) {
+      return false;
+    }
+
+    return true;
+  }
+
   obtenerPorId(id: string): Observable<SolicitudDetalle | null> {
     const params = new URLSearchParams(window.location.search);
     const retardo = Number(params.get("mockRetardo")) || 700;
@@ -4204,24 +5138,422 @@ export class SolicitudesServiceMock extends SolicitudesService {
       return of(null).pipe(delay(retardo));
     }
 
-    const edicion = this.edicionBase(solicitud);
-    const pendiente =
-      solicitud.modificacionPendiente ??
-      this.modificacionDemo(solicitud, edicion);
-    const fila = pendiente
-      ? { ...solicitud, modificacionPendiente: pendiente }
-      : solicitud;
+    return of(this.construirDetalle(solicitud)).pipe(delay(retardo));
+  }
 
-    const extras = [
-      ...(this.historialEdiciones.get(id) ?? []),
-      ...this.eventosSubsanacionHistorial(id, fila.estado),
-    ];
-    const detalle = comoDetalle(fila, edicion, extras);
+  /**
+   * Expediente de una solicitud para la validación del OG (O-02).
+   *
+   * Trucos de desarrollo (query params, sin tocar código):
+   * - `?mockValidacion=error` → falla la consulta.
+   * - `?mockValidacion=no-encontrada` → simula un identificador inexistente.
+   * - `?mockValidacion=no-asignada` → simula una solicitud de otro despacho.
+   * - `?mockRetardo=2500` → retardo en ms.
+   *
+   * PROVISIONAL: el ordenador de la sesión es la constante
+   * `ORDENADOR_GASTO_SESION_MOCK`; el backend debe resolverlo desde el token.
+   */
+  obtenerValidacionOrdenador(
+    id: string,
+  ): Observable<ConsultaValidacionOrdenador> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 700;
+    const modo = params.get("mockValidacion");
+
+    if (modo === "error") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible consultar la solicitud para validación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (modo === "no-encontrada" || modo === "no-asignada") {
+      return of(
+        modo === "no-encontrada"
+          ? ({ estado: "no-encontrada" } as const)
+          : ({ estado: "no-asignada" } as const),
+      ).pipe(delay(retardo));
+    }
+
+    const solicitud = this.fila(id);
+    if (!solicitud) {
+      return of({ estado: "no-encontrada" } as const).pipe(delay(retardo));
+    }
+
+    if (solicitud.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id) {
+      return of({ estado: "no-asignada" } as const).pipe(delay(retardo));
+    }
 
     return of({
-      ...detalle,
-      subsanacion: this.ultimaSubsanacion(id),
+      estado: "ok",
+      solicitud: this.construirDetalle(solicitud),
+    } as const).pipe(delay(retardo));
+  }
+
+  /**
+   * Bandeja de modificaciones por aprobar (O-04).
+   *
+   * Trucos de desarrollo (query params, sin tocar código):
+   * - `?mockModificaciones=error` → falla la consulta.
+   * - `?mockModificaciones=vacio` → bandeja sin registros.
+   * - `?mockRetardo=2500` → retardo en ms.
+   */
+  listarModificacionesOrdenador(
+    criterios: Partial<FiltroModificacionesOrdenador>,
+    pagina: number,
+    porPagina: number,
+  ): Observable<ResultadoListadoModificaciones> {
+    const params = new URLSearchParams(window.location.search);
+    const modo = params.get("mockModificaciones");
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (modo === "error") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible consultar las modificaciones pendientes de decisión.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (modo === "vacio") {
+      return of({
+        modificaciones: [],
+        total: 0,
+        conteos: conteosModificacionesVacios(),
+        dependencias: [],
+      }).pipe(delay(retardo));
+    }
+
+    const delOrdenador = this.solicitudesDeLaSesion().filter(
+      (solicitud) =>
+        solicitud.ordenadorGastoId === ORDENADOR_GASTO_SESION_MOCK.id,
+    );
+    const filas = delOrdenador.flatMap((solicitud) =>
+      this.modificacionesDe(solicitud),
+    );
+    const base = filas.filter((fila) =>
+      this.coincideModificacion(fila, criterios),
+    );
+    const conteos = this.contarModificaciones(base);
+    const filtradas = base.filter(
+      (fila) => !criterios.estado || fila.estado === criterios.estado,
+    );
+    // PROVISIONAL: el mockup ordena por radicado descendente.
+    const factor = criterios.ordenNumero === "asc" ? 1 : -1;
+    const ordenadas = [...filtradas].sort(
+      (a, b) => factor * a.radicado.localeCompare(b.radicado),
+    );
+    const desde = pagina * porPagina;
+
+    return of({
+      modificaciones: ordenadas.slice(desde, desde + porPagina),
+      total: ordenadas.length,
+      conteos,
+      dependencias: [
+        ...new Set(filas.map((fila) => fila.solicitud.dependencia)),
+      ].sort((a, b) => a.localeCompare(b, "es-CO")),
     }).pipe(delay(retardo));
+  }
+
+  private coincideModificacion(
+    fila: ModificacionOrdenador,
+    criterios: Partial<FiltroModificacionesOrdenador>,
+  ): boolean {
+    const { dependencia, tipoCambio, busqueda, desde, hasta } = criterios;
+
+    if (dependencia && fila.solicitud.dependencia !== dependencia) {
+      return false;
+    }
+    if (tipoCambio && fila.tipoCambio !== tipoCambio) {
+      return false;
+    }
+
+    const texto = busqueda?.trim().toLowerCase();
+    if (texto) {
+      const coincide = [
+        fila.radicado,
+        fila.solicitud.id,
+        fila.solicitud.titulo,
+        fila.solicitud.dependencia,
+        fila.propuesta.solicitadaPor,
+      ].some((valor) => valor.toLowerCase().includes(texto));
+      if (!coincide) {
+        return false;
+      }
+    }
+
+    const fecha = fechaProcesamientoIso(fila.propuesta.solicitadaEl);
+    if (desde && (!fecha || fecha < desde)) {
+      return false;
+    }
+    if (hasta && (!fecha || fecha > hasta)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private contarModificaciones(
+    filas: readonly ModificacionOrdenador[],
+  ): ConteosModificaciones {
+    return {
+      todas: filas.length,
+      "por-aprobar": filas.filter((fila) => fila.estado === "por-aprobar")
+        .length,
+      aprobada: filas.filter((fila) => fila.estado === "aprobada").length,
+      rechazada: filas.filter((fila) => fila.estado === "rechazada").length,
+      aprobadasMes: filas.filter(
+        (fila) =>
+          fila.estado === "aprobada" &&
+          !!fila.decision &&
+          esMesActual(fila.decision.fecha),
+      ).length,
+      procesosAprobados: new Set(
+        filas
+          .filter((fila) => fila.estado === "aprobada")
+          .map((fila) => fila.solicitud.id),
+      ).size,
+    };
+  }
+
+  /**
+   * Expediente de una modificación por radicado (`MOD-…`).
+   *
+   * Trucos de desarrollo:
+   * - `?mockModificacion=error` → falla la consulta.
+   * - `?mockModificacion=no-encontrada` → radicado inexistente.
+   * - `?mockModificacion=no-asignada` → solicitud de otro despacho.
+   * - `?mockRetardo=2500` → retardo en ms.
+   */
+  obtenerModificacionOrdenador(
+    id: string,
+  ): Observable<ConsultaModificacionOrdenador> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 700;
+    const modo = params.get("mockModificacion");
+
+    if (modo === "error") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible consultar la modificación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (modo === "no-encontrada" || modo === "no-asignada") {
+      return of(
+        modo === "no-encontrada"
+          ? ({ estado: "no-encontrada" } as const)
+          : ({ estado: "no-asignada" } as const),
+      ).pipe(delay(retardo));
+    }
+
+    const modificacion = this.buscarModificacion(id);
+    const solicitud = modificacion
+      ? this.fila(modificacion.solicitud.id)
+      : undefined;
+    if (!modificacion || !solicitud) {
+      return of({ estado: "no-encontrada" } as const).pipe(delay(retardo));
+    }
+    if (solicitud.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id) {
+      return of({ estado: "no-asignada" } as const).pipe(delay(retardo));
+    }
+
+    return of({
+      estado: "ok",
+      solicitud: this.construirDetalle(solicitud),
+      modificacion: { ...modificacion, solicitud },
+    } as const).pipe(delay(retardo));
+  }
+
+  /**
+   * Registra la decisión del Ordenador del Gasto sobre una modificación.
+   *
+   * RN-35 (provisional): una sola decisión. RN-30: solo ítems y cierre.
+   * RN-25: los ítems se modifican una única vez por solicitud. RN-24
+   * (provisional): el rechazo exige al menos 20 caracteres.
+   */
+  registrarDecisionModificacion(
+    id: string,
+    datos: RegistroDecisionModificacion,
+  ): Observable<SolicitudDetalle> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (params.get("mockModificacion") === "error-guardado") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible registrar la decisión de la modificación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const encontrada = this.buscarModificacion(id);
+    const actual = encontrada
+      ? this.fila(encontrada.solicitud.id)
+      : undefined;
+    if (!actual || !encontrada) {
+      return throwError(
+        () => new Error("La modificación ya no existe en el expediente."),
+      ).pipe(delay(retardo));
+    }
+
+    if (actual.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id) {
+      return throwError(
+        () =>
+          new Error(
+            "La modificación está asignada a otro despacho del ordenador del gasto.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (
+      encontrada.estado !== "por-aprobar" ||
+      !actual.modificacionPendiente
+    ) {
+      return throwError(
+        () =>
+          new Error(
+            "La modificación ya fue decidida y no admite cambios (RN-35).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (datos.resultado !== "aprobada" && datos.resultado !== "rechazada") {
+      return throwError(
+        () =>
+          new Error(
+            "Debe seleccionar si aprueba o rechaza la modificación.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const propuesta = actual.modificacionPendiente;
+    const justificacion = textoPlanoDesdeHtml(datos.justificacionHtml).trim();
+    if (
+      datos.resultado === "rechazada" &&
+      justificacion.length < MIN_CARACTERES_JUSTIFICACION
+    ) {
+      return throwError(
+        () =>
+          new Error(
+            `Para rechazar la modificación debe sustentar con al menos ${MIN_CARACTERES_JUSTIFICACION} caracteres (RN-24).`,
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    /* RN-30: la propuesta solo puede tocar ítems (paso 3) y cierre (paso 2). */
+    const base = this.edicionBase(actual);
+    const completo = this.diferencias.calcular(base, propuesta.valores);
+    if (completo.total === 0) {
+      return throwError(
+        () =>
+          new Error(
+            "La propuesta no registra cambios frente a la versión vigente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+    if (completo.grupos.some((grupo) => grupo.paso !== 2 && grupo.paso !== 3)) {
+      return throwError(
+        () =>
+          new Error(
+            "La modificación incluye campos fuera del alcance permitido (RN-30).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    /* RN-25: los ítems se modifican una única vez por solicitud. */
+    const itemsModificados = cambiosDelPaso(completo, 3) > 0;
+    if (
+      datos.resultado === "aprobada" &&
+      itemsModificados &&
+      this.itemsYaModificados(actual)
+    ) {
+      return throwError(
+        () =>
+          new Error(
+            "Los ítems de esta solicitud ya fueron modificados una vez (RN-25).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const ahora = new Date();
+    const fecha = fechaHoraExpediente(ahora);
+    const detalle = this.construirDetalle(actual);
+    const cierrePropuesto =
+      fechaCortaDesdeIso(propuesta.valores.datosGenerales.fechaCierre) ||
+      actual.cierre;
+    const aprobada = datos.resultado === "aprobada";
+    const decision: DecisionModificacion = {
+      resultado: datos.resultado,
+      justificacion,
+      justificacionHtml: datos.justificacionHtml,
+      usuario: ORDENADOR_GASTO_SESION_MOCK.usuario,
+      autor: ORDENADOR_GASTO_SESION_MOCK.nombre,
+      rol: ORDENADOR_GASTO_SESION_MOCK.rol,
+      fecha,
+      fechaIso: ahora.toISOString(),
+      versionAnterior:
+        propuesta.versionAnterior ?? versionSolicitud(actual),
+      versionVigente: aprobada
+        ? propuesta.version
+        : (propuesta.versionAnterior ?? versionSolicitud(actual)),
+      cierreAnterior: actual.cierre,
+      cierreVigente: aprobada ? cierrePropuesto : actual.cierre,
+      itemsModificados,
+      notificados:
+        datos.notificar === false
+          ? 0
+          : aprobada
+            ? detalle.cotizacionesRecibidas
+            : 1,
+    };
+    const resuelta: ModificacionResuelta = {
+      ...propuesta,
+      estado: datos.resultado,
+      decision,
+      diferencias: completo,
+      resueltaEl: fecha,
+    };
+    const actualizada = aprobada
+      ? this.solicitudAprobada(actual, propuesta, decision, resuelta)
+      : this.solicitudRechazada(actual, propuesta, decision, resuelta);
+
+    this.filasEditadas.set(actual.id, actualizada);
+    if (aprobada) {
+      this.ediciones.set(actual.id, propuesta.valores);
+      this.publicarAdenda(actual, decision, base, completo);
+    }
+
+    return of(this.construirDetalle(actualizada)).pipe(delay(retardo));
+  }
+
+  /**
+   * Proyección de lectura completa de una solicitud.
+   *
+   * La comparten el detalle de S-03 y la validación de O-02 para que ambas
+   * pantallas vean el mismo expediente (edición vigente, modificación pendiente
+   * y bitácora con los eventos de subsanación).
+   */
+  private construirDetalle(solicitud: Solicitud): SolicitudDetalle {
+    const edicion = this.edicionBase(solicitud);
+    const extras = [
+      ...(this.historialEdiciones.get(solicitud.id) ?? []),
+      ...this.eventosSubsanacionHistorial(solicitud.id, solicitud.estado),
+      ...(solicitud.modificacionesResueltas ?? []).map((resuelta) =>
+        eventoDecisionModificacion(solicitud.id, resuelta),
+      ),
+    ];
+
+    return {
+      ...comoDetalle(solicitud, edicion, extras),
+      subsanacion: this.ultimaSubsanacion(solicitud.id),
+    };
   }
 
   obtenerDetalleProveedor(
@@ -4276,11 +5608,12 @@ export class SolicitudesServiceMock extends SolicitudesService {
       valoresVigentes,
     );
     const diferencias = invitacion.adendaPublicada
-      ? this.diferencias.calcular(
+      ? (invitacion.adendaPublicada.diferencias ??
+        this.diferencias.calcular(
           valoresAnteriores,
           valoresVigentes,
           "restringida",
-        )
+        ))
       : null;
 
     return of({
@@ -4299,7 +5632,9 @@ export class SolicitudesServiceMock extends SolicitudesService {
           ? {
               ...invitacion.adendaPublicada,
               diferencias,
-              itemsAnteriores: valoresAnteriores.items.registros,
+              itemsAnteriores:
+                invitacion.adendaPublicada.itemsAnteriores ??
+                valoresAnteriores.items.registros,
             }
           : null,
     }).pipe(delay(retardo));
@@ -4600,6 +5935,188 @@ export class SolicitudesServiceMock extends SolicitudesService {
 
   obtenerSubsanaciones(id: string): Observable<readonly Subsanacion[]> {
     return of(this.subsanaciones.get(id) ?? []).pipe(delay(350));
+  }
+
+  /**
+   * Registra la validación final del Ordenador del Gasto (O-03).
+   *
+   * Trucos de desarrollo:
+   * - `?mockValidacion=error-guardado` → falla el guardado.
+   * - `?mockRetardo=2500` → retardo en ms.
+   */
+  registrarValidacionDecision(
+    id: string,
+    datos: RegistroValidacionDecision,
+  ): Observable<SolicitudDetalle> {
+    const params = new URLSearchParams(window.location.search);
+    const retardo = Number(params.get("mockRetardo")) || 900;
+
+    if (params.get("mockValidacion") === "error-guardado") {
+      return throwError(
+        () =>
+          new Error(
+            "No fue posible registrar la decisión de validación. Intente nuevamente.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const actual = this.fila(id);
+    if (!actual) {
+      return throwError(
+        () => new Error("La solicitud ya no existe en el expediente."),
+      ).pipe(delay(retardo));
+    }
+
+    if (actual.ordenadorGastoId !== ORDENADOR_GASTO_SESION_MOCK.id) {
+      return throwError(
+        () =>
+          new Error(
+            "La solicitud está asignada a otro despacho del ordenador del gasto.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (actual.estado === "cancelada" || actual.estado === "borrador") {
+      return throwError(
+        () =>
+          new Error(
+            "La solicitud no admite validación en su estado actual.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const decision = actual.decision;
+    if (!decision) {
+      return throwError(
+        () =>
+          new Error(
+            "El solicitante aún no ha registrado una decisión para validar.",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (decision.fase !== "enviada" || decision.validacion) {
+      return throwError(
+        () =>
+          new Error(
+            "La decisión ya fue validada y no admite cambios (RN-35).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (!cierreSolicitudVencido(actual.cierre)) {
+      return throwError(
+        () =>
+          new Error(
+            "El periodo de cotización aún no ha terminado; la validación se habilita al cierre (RN-29).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const justificacion = textoPlanoDesdeHtml(datos.justificacionHtml).trim();
+    if (justificacion.length < MIN_CARACTERES_JUSTIFICACION) {
+      return throwError(
+        () =>
+          new Error(
+            `La respuesta al proveedor debe tener al menos ${MIN_CARACTERES_JUSTIFICACION} caracteres (RN-24).`,
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    if (datos.resultado !== "aprobada" && datos.resultado !== "rechazada") {
+      return throwError(
+        () => new Error("Debe seleccionar si aprueba o rechaza la cotización."),
+      ).pipe(delay(retardo));
+    }
+
+    const valorCdp = presupuestoDetalle(actual)?.valorCdp ?? 0;
+    if (
+      datos.resultado === "aprobada" &&
+      valorCdp > 0 &&
+      decision.valor > valorCdp
+    ) {
+      return throwError(
+        () =>
+          new Error(
+            "La oferta supera el techo presupuestal y no puede aprobarse (RN-40).",
+          ),
+      ).pipe(delay(retardo));
+    }
+
+    const ahora = new Date();
+    const fecha = fechaHoraExpediente(ahora);
+    const validacion: ValidacionDecision = {
+      resultado: datos.resultado,
+      justificacion,
+      justificacionHtml: datos.justificacionHtml,
+      usuario: ORDENADOR_GASTO_SESION_MOCK.usuario,
+      autor: ORDENADOR_GASTO_SESION_MOCK.nombre,
+      rol: ORDENADOR_GASTO_SESION_MOCK.rol,
+      fecha,
+      fechaIso: ahora.toISOString(),
+    };
+
+    const notificaciones: readonly NotificacionDecision[] = datos.notificar
+      ? [
+          ...decision.notificaciones,
+          {
+            destinatario: decision.proveedorNombre,
+            correo: datos.correoProveedor ?? "",
+            fecha,
+            fechaIso: ahora.toISOString(),
+            tipo: datos.resultado === "aprobada" ? "adjudicacion" : "rechazo",
+            estadoEntrega: "simulada",
+          },
+        ]
+      : decision.notificaciones;
+
+    const decisionValidada: DecisionSolicitud = {
+      ...decision,
+      fase: datos.resultado,
+      validacion,
+      notificaciones,
+    };
+
+    const actualizada: Solicitud = {
+      ...actual,
+      estado: datos.resultado === "aprobada" ? "adjudicada" : "desierta",
+      decision: decisionValidada,
+      ultimaModificacion: fecha,
+    };
+    this.filasEditadas.set(id, actualizada);
+
+    /*
+     * La invitación solo existe para los escenarios del portal del proveedor.
+     * Se actualiza cuando está registrada; para las semillas del ordenador no
+     * se inventa una invitación nueva.
+     */
+    const invitacionBase =
+      this.invitacionesActualizadas.get(id) ??
+      INVITACIONES_PROVEEDOR_MOCK.find(
+        (item) => item.solicitudId === id,
+      );
+    if (invitacionBase) {
+      this.invitacionesActualizadas.set(id, {
+        ...invitacionBase,
+        estado: datos.resultado === "aprobada" ? "aceptada" : "rechazada",
+      });
+    }
+
+    return of(
+      comoDetalle(
+        actualizada,
+        this.edicionBase(actualizada),
+        this.historialEdiciones.get(id) ?? [],
+      ),
+    ).pipe(delay(retardo));
+  }
+
+  esUsuarioOrdenadorSesion(usuario: string): boolean {
+    return usuario === ORDENADOR_GASTO_SESION_MOCK.usuario;
+  }
+
+  esSolicitanteOrdenadorSesion(nombre: string): boolean {
+    return nombre === ORDENADOR_GASTO_SESION_MOCK.nombre;
   }
 
   registrarSubsanacion(
@@ -5271,12 +6788,42 @@ export class SolicitudesServiceMock extends SolicitudesService {
     }
 
     const base = this.edicionBase(actual);
-    const resumen = this.diferencias.calcular(base, valores);
+    // En la modificación restringida el diff se limita a ítems y cierre
+    // (RN-30); el borrador conserva el alcance completo.
+    const resumen =
+      modo === "restringida"
+        ? this.diferencias.calcular(base, valores, "restringida")
+        : this.diferencias.calcular(base, valores);
     const ahora = new Date();
     const fecha = fechaHoraExpediente(ahora);
     // Normaliza una sola vez: el texto viaja desde el editor enriquecido y debe
     // quedar en texto plano tanto en la propuesta como en la versión guardada.
     const motivo = textoPlanoDesdeHtml(justificacion).trim();
+
+    if (modo === "restringida") {
+      // RN-31: la solicitud de modificación exige 27 caracteres.
+      if (motivo.length < MIN_CARACTERES_MODIFICACION) {
+        return throwError(
+          () =>
+            new Error(
+              `La justificación de la modificación debe tener al menos ${MIN_CARACTERES_MODIFICACION} caracteres (RN-31).`,
+            ),
+        ).pipe(delay(retardo));
+      }
+      // RN-25: los ítems solo se modifican una única vez por solicitud.
+      if (
+        cambiosDelPaso(resumen, 3) > 0 &&
+        this.itemsYaModificados(actual)
+      ) {
+        return throwError(
+          () =>
+            new Error(
+              "Los ítems de esta solicitud ya fueron modificados una vez (RN-25).",
+            ),
+        ).pipe(delay(retardo));
+      }
+    }
+
     const revision = revisionSolicitud(actual) + 1;
     const version =
       modo === "completa"
@@ -5331,18 +6878,26 @@ export class SolicitudesServiceMock extends SolicitudesService {
         },
       ]);
     } else {
+      /*
+       * La propuesta no cambia la versión publicada: `version`/`revision`
+       * viajan en `modificacionPendiente` y se aplican solo si el Ordenador
+       * del Gasto la aprueba. Así el rechazo conserva el expediente intacto.
+       */
       this.filasEditadas.set(id, {
         ...actual,
         estado,
-        version,
-        revision,
+        version: versionSolicitud(actual),
+        revision: revisionSolicitud(actual),
         ultimaModificacion: fecha,
         modificacionPendiente: {
+          radicado: this.radicadoModificacion(actual),
           version,
           revision,
+          versionAnterior: versionSolicitud(actual),
           solicitadaEl: fecha,
           solicitadaPor: "Raúl Quimbaya",
           cambios: resumen.total,
+          estadoAnterior: actual.estado,
           justificacion: motivo,
           valores,
         },
@@ -5588,6 +7143,350 @@ export class SolicitudesServiceMock extends SolicitudesService {
     );
   }
 
+  /* ─────────────── Modificaciones por aprobar (O-04) ─────────────── */
+
+  /**
+   * Materializa las modificaciones de demostración en `filasEditadas`.
+   *
+   * Se hace en el constructor (y no en la constante) porque la fotografía
+   * editable se construye con `datosEdicionDesdeDetalle`, que depende de
+   * catálogos declarados después de `DATOS_MOCK`. Las filas aprobadas y
+   * rechazadas pasan por los mismos helpers que usa la decisión real, de modo
+   * que la semilla y la sesión no divergen.
+   */
+  private prepararModificacionesDemo(): void {
+    for (const semilla of MODIFICACIONES_SEMILLA) {
+      const base =
+        DATOS_MOCK.find((solicitud) => solicitud.id === semilla.solicitudId) ??
+        SOLICITUDES_PROVEEDOR_MOCK.find(
+          (solicitud) => solicitud.id === semilla.solicitudId,
+        );
+      if (!base) {
+        continue;
+      }
+
+      const anterior = datosEdicionDesdeDetalle(base);
+      const valores = this.propuestaDesdeSemilla(anterior, semilla);
+      const diferencias = this.diferencias.calcular(
+        anterior,
+        valores,
+        "restringida",
+      );
+      const propuesta: ModificacionPendiente = {
+        radicado: semilla.radicado,
+        version: siguienteVersionModificacion(versionSolicitud(base)),
+        revision: revisionSolicitud(base) + 1,
+        versionAnterior: versionSolicitud(base),
+        solicitadaEl: semilla.solicitadaEl,
+        solicitadaPor: semilla.solicitadaPor,
+        cambios: diferencias.total,
+        estadoAnterior: "enviada-proveedores",
+        justificacion: semilla.justificacion,
+        valores,
+      };
+
+      if (semilla.estado === "por-aprobar") {
+        this.filasEditadas.set(base.id, {
+          ...base,
+          estado: "en-aprobacion",
+          ultimaModificacion: semilla.solicitadaEl,
+          modificacionPendiente: propuesta,
+        });
+        continue;
+      }
+
+      const decision = this.decisionDesdeSemilla(
+        base,
+        propuesta,
+        diferencias,
+        semilla,
+      );
+      const resuelta: ModificacionResuelta = {
+        ...propuesta,
+        estado: semilla.estado,
+        decision,
+        diferencias,
+        resueltaEl: decision.fecha,
+      };
+      const actualizada =
+        semilla.estado === "aprobada"
+          ? this.solicitudAprobada(base, propuesta, decision, resuelta)
+          : this.solicitudRechazada(base, propuesta, decision, resuelta);
+      this.filasEditadas.set(base.id, actualizada);
+      if (semilla.estado === "aprobada") {
+        this.ediciones.set(base.id, propuesta.valores);
+      }
+    }
+  }
+
+  /** Aplica los cambios de la semilla sobre la fotografía publicada. */
+  private propuestaDesdeSemilla(
+    anterior: DatosEdicionSolicitud,
+    semilla: ModificacionSemilla,
+  ): DatosEdicionSolicitud {
+    const registros = anterior.items.registros.map((item) => {
+      const cambio = semilla.items?.find((cambio) => cambio.id === item.id);
+      if (!cambio) {
+        return item;
+      }
+      return {
+        ...item,
+        ...(cambio.nombre ? { nombre: cambio.nombre } : {}),
+        ...(cambio.descripcion ? { descripcion: cambio.descripcion } : {}),
+        ...(cambio.cantidad !== undefined
+          ? { cantidad: cambio.cantidad }
+          : {}),
+        ...(cambio.unidad ? { unidad: cambio.unidad } : {}),
+      };
+    });
+
+    return {
+      ...anterior,
+      datosGenerales: {
+        ...anterior.datosGenerales,
+        fechaCierre:
+          semilla.cierreIso ?? anterior.datosGenerales.fechaCierre,
+      },
+      items: { ...anterior.items, registros },
+    };
+  }
+
+  /** Resolución de demostración de una modificación ya decidida. */
+  private decisionDesdeSemilla(
+    base: Solicitud,
+    propuesta: ModificacionPendiente,
+    diferencias: ResumenDiferencias,
+    semilla: ModificacionSemilla,
+  ): DecisionModificacion {
+    const resolucion = semilla.resolucion;
+    const aprobada = semilla.estado === "aprobada";
+    const justificacion = resolucion?.justificacion ?? "";
+    const cierreVigente = fechaCortaDesdeIso(
+      propuesta.valores.datosGenerales.fechaCierre,
+    );
+    return {
+      resultado: semilla.estado === "aprobada" ? "aprobada" : "rechazada",
+      justificacion,
+      justificacionHtml: justificacion,
+      usuario: ORDENADOR_GASTO_SESION_MOCK.usuario,
+      autor: ORDENADOR_GASTO_SESION_MOCK.nombre,
+      rol: ORDENADOR_GASTO_SESION_MOCK.rol,
+      fecha: resolucion?.fecha ?? propuesta.solicitadaEl,
+      fechaIso: "",
+      versionAnterior:
+        propuesta.versionAnterior ?? versionSolicitud(base),
+      versionVigente: aprobada
+        ? propuesta.version
+        : (propuesta.versionAnterior ?? versionSolicitud(base)),
+      cierreAnterior: base.cierre,
+      cierreVigente: aprobada ? cierreVigente : base.cierre,
+      itemsModificados: cambiosDelPaso(diferencias, 3) > 0,
+      notificados: resolucion?.notificados ?? 0,
+    };
+  }
+
+  /** Fila resultante de aprobar: nueva versión, cierre y resolución. */
+  private solicitudAprobada(
+    base: Solicitud,
+    propuesta: ModificacionPendiente,
+    decision: DecisionModificacion,
+    resuelta: ModificacionResuelta,
+  ): Solicitud {
+    return {
+      ...base,
+      estado: "enviada-con-modificaciones",
+      version: propuesta.version,
+      revision: propuesta.revision,
+      cierre:
+        fechaCortaDesdeIso(propuesta.valores.datosGenerales.fechaCierre) ||
+        base.cierre,
+      ultimaModificacion: decision.fecha,
+      modificacionPendiente: undefined,
+      modificacionesResueltas: [
+        ...(base.modificacionesResueltas ?? []),
+        resuelta,
+      ],
+    };
+  }
+
+  /** Fila resultante de rechazar: conserva versión, cierre e ítems. */
+  private solicitudRechazada(
+    base: Solicitud,
+    propuesta: ModificacionPendiente,
+    decision: DecisionModificacion,
+    resuelta: ModificacionResuelta,
+  ): Solicitud {
+    return {
+      ...base,
+      estado: propuesta.estadoAnterior ?? "enviada-proveedores",
+      ultimaModificacion: decision.fecha,
+      modificacionPendiente: undefined,
+      modificacionesResueltas: [
+        ...(base.modificacionesResueltas ?? []),
+        resuelta,
+      ],
+    };
+  }
+
+  /** Proyección de una modificación para la bandeja y la decisión. */
+  private proyectarModificacion(
+    solicitud: Solicitud,
+    propuesta: ModificacionPendiente,
+    estado: EstadoModificacionOrdenador,
+    diferencias: ResumenDiferencias,
+    decision?: DecisionModificacion,
+    resueltaEl?: string,
+  ): ModificacionOrdenador {
+    const cierrePropuesto =
+      fechaCortaDesdeIso(propuesta.valores.datosGenerales.fechaCierre) ||
+      solicitud.cierre;
+    return {
+      radicado:
+        propuesta.radicado ??
+        `MOD-${solicitud.vigencia}-${solicitud.id.slice(-4)}`,
+      solicitud,
+      propuesta,
+      estado,
+      decision,
+      resueltaEl,
+      diferencias,
+      tipoCambio: tipoCambioModificacion(diferencias),
+      versionAnterior:
+        propuesta.versionAnterior ?? versionSolicitud(solicitud),
+      versionPropuesta: propuesta.version,
+      cierreVigente: decision?.cierreAnterior ?? solicitud.cierre,
+      cierrePropuesto: decision ? decision.cierreVigente : cierrePropuesto,
+      cambiosItems: cambiosDelPaso(diferencias, 3),
+      cambiosCierre: cambiosDelPaso(diferencias, 2),
+    };
+  }
+
+  /** Modificaciones (pendiente + resueltas) de una solicitud. */
+  private modificacionesDe(
+    solicitud: Solicitud,
+  ): readonly ModificacionOrdenador[] {
+    const filas: ModificacionOrdenador[] = [];
+    if (solicitud.modificacionPendiente) {
+      const base = this.edicionBase(solicitud);
+      filas.push(
+        this.proyectarModificacion(
+          solicitud,
+          solicitud.modificacionPendiente,
+          "por-aprobar",
+          this.diferencias.calcular(
+            base,
+            solicitud.modificacionPendiente.valores,
+            "restringida",
+          ),
+        ),
+      );
+    }
+    for (const resuelta of solicitud.modificacionesResueltas ?? []) {
+      filas.push(
+        this.proyectarModificacion(
+          solicitud,
+          resuelta,
+          resuelta.estado,
+          resuelta.diferencias,
+          resuelta.decision,
+          resuelta.resueltaEl,
+        ),
+      );
+    }
+    return filas;
+  }
+
+  /** Solicitudes de la sesión, incluidas las del portal del proveedor. */
+  private solicitudesDeLaSesion(): readonly Solicitud[] {
+    const todas = new Map<string, Solicitud>();
+    for (const solicitud of [...DATOS_MOCK, ...SOLICITUDES_PROVEEDOR_MOCK]) {
+      todas.set(solicitud.id, solicitud);
+    }
+    return [...todas.values()].map(
+      (solicitud) => this.filasEditadas.get(solicitud.id) ?? solicitud,
+    );
+  }
+
+  /** Busca una modificación por su radicado. */
+  private buscarModificacion(
+    id: string,
+  ): ModificacionOrdenador | null {
+    for (const solicitud of this.solicitudesDeLaSesion()) {
+      const encontrada = this.modificacionesDe(solicitud).find(
+        (modificacion) => modificacion.radicado === id,
+      );
+      if (encontrada) {
+        return encontrada;
+      }
+    }
+    return null;
+  }
+
+  /** true si la solicitud ya aprobó una modificación de ítems (RN-25). */
+  private itemsYaModificados(solicitud: Solicitud): boolean {
+    return (solicitud.modificacionesResueltas ?? []).some(
+      (modificacion) =>
+        modificacion.estado === "aprobada" &&
+        modificacion.decision.itemsModificados,
+    );
+  }
+
+  /** Radicado único de una modificación ("MOD-2026-0041"). */
+  private radicadoModificacion(solicitud: Solicitud): string {
+    const base = `MOD-${solicitud.vigencia}-${solicitud.id.slice(-4)}`;
+    const usados = new Set(
+      [
+        ...(solicitud.modificacionesResueltas ?? []).map(
+          (modificacion) => modificacion.radicado,
+        ),
+        solicitud.modificacionPendiente?.radicado,
+      ].filter((radicado): radicado is string => !!radicado),
+    );
+    if (!usados.has(base)) {
+      return base;
+    }
+    let consecutivo = 2;
+    while (usados.has(`${base}-${consecutivo}`)) {
+      consecutivo += 1;
+    }
+    return `${base}-${consecutivo}`;
+  }
+
+  /** Publica la adenda simulada en la invitación del proveedor (P-02/P-05). */
+  private publicarAdenda(
+    solicitud: Solicitud,
+    decision: DecisionModificacion,
+    base: DatosEdicionSolicitud,
+    diferencias: ResumenDiferencias,
+  ): void {
+    const invitacion =
+      this.invitacionesActualizadas.get(solicitud.id) ??
+      INVITACIONES_PROVEEDOR_MOCK.find(
+        (item) => item.solicitudId === solicitud.id,
+      );
+    if (!invitacion) {
+      return;
+    }
+    const numero = String(
+      Number(invitacion.adendaPublicada?.numero ?? "0") + 1,
+    );
+    this.invitacionesActualizadas.set(solicitud.id, {
+      ...invitacion,
+      adendaPublicada: {
+        numero,
+        versionAnterior: decision.versionAnterior,
+        versionVigente: decision.versionVigente,
+        publicadaEl: decision.fecha,
+        anexoId: `anexo-${solicitud.id.slice(-4)}-adenda-${numero}`,
+        motivo: decision.justificacion,
+        cierreAnterior: decision.cierreAnterior ?? undefined,
+        cierreVigente: decision.cierreVigente ?? undefined,
+        diferencias,
+        itemsAnteriores: base.items.registros,
+      },
+    });
+  }
+
   /** Último periodo de subsanación de una solicitud. */
   private ultimaSubsanacion(id: string): Subsanacion | null {
     return this.subsanaciones.get(id)?.at(-1) ?? null;
@@ -5633,7 +7532,17 @@ export class SolicitudesServiceMock extends SolicitudesService {
       this.asegurarVersiones(solicitud.id);
       return guardada;
     }
-    const construida = datosEdicionDesdeDetalle(solicitud);
+    /*
+     * Una modificación aprobada en una sesión anterior (semilla) ya forma
+     * parte de la versión publicada: la fotografía base sale de su propuesta,
+     * no del expediente original.
+     */
+    const aprobada = [...(solicitud.modificacionesResueltas ?? [])]
+      .reverse()
+      .find((modificacion) => modificacion.estado === "aprobada");
+    const construida = aprobada
+      ? aprobada.valores
+      : datosEdicionDesdeDetalle(solicitud);
     this.ediciones.set(solicitud.id, construida);
     this.asegurarVersiones(solicitud.id);
     return construida;
@@ -5680,52 +7589,6 @@ export class SolicitudesServiceMock extends SolicitudesService {
         version.valores.datosGenerales.dependenciaDestino,
         semilla.dependencia,
       ),
-    };
-  }
-
-  /**
-   * Modificación pendiente de demostración (S-08).
-   *
-   * La solicitud `en-aprobacion` de la semilla no tiene una propuesta guardada;
-   * este mock la crea para que el detalle y el armazón bloqueado muestren el
-   * flujo completo sin depender de una edición previa en la sesión.
-   */
-  private modificacionDemo(
-    solicitud: Solicitud,
-    edicion: DatosEdicionSolicitud,
-  ): ModificacionPendiente | null {
-    if (solicitud.id !== "SOL-2026-0041") {
-      return null;
-    }
-
-    const registros = edicion.items.registros;
-    const primero = registros[0];
-    const valores: DatosEdicionSolicitud = {
-      ...edicion,
-      datosGenerales: {
-        ...edicion.datosGenerales,
-        fechaCierre: "2026-02-27",
-      },
-      items: primero
-        ? {
-            ...edicion.items,
-            registros: [
-              { ...primero, cantidad: primero.cantidad + 2 },
-              ...registros.slice(1),
-            ],
-          }
-        : edicion.items,
-    };
-
-    return {
-      version: "v1.1",
-      revision: 2,
-      solicitadaEl: "19/02/2026 15:05 COT",
-      solicitadaPor: "Raúl Quimbaya",
-      cambios: 2,
-      justificacion:
-        "Ajuste de la fecha de cierre y de la cantidad del primer ítem por actualización de la necesidad radicada en SICAPITAL.",
-      valores,
     };
   }
 
@@ -5851,4 +7714,33 @@ function contarInvitaciones(
     conteos[grupoDeInvitacion(invitacion.estado)] += 1;
   }
   return conteos;
+}
+
+/**
+ * Contadores de la bandeja de validación (O-01).
+ *
+ * `validadasMes` se calcula con la fecha de la validación final; el periodo es
+ * el mes calendario en curso (decisión de negocio sobre el mockup, que hablaba
+ * de «esta semana»). PROVISIONAL.
+ */
+function contarValidaciones(
+  filas: readonly SolicitudValidacionOrdenador[],
+): ConteosValidaciones {
+  const conteos: Record<GrupoFiltroValidacion, number> = {
+    todas: filas.length,
+    "por-validar": 0,
+    "validada-aprobada": 0,
+    "validada-rechazada": 0,
+  };
+  for (const fila of filas) {
+    conteos[estadoValidacion(fila)] += 1;
+  }
+  return {
+    ...conteos,
+    validadasMes: filas.filter(
+      (fila) =>
+        !!fila.decision.validacion &&
+        esMesActual(fila.decision.validacion.fecha),
+    ).length,
+  };
 }

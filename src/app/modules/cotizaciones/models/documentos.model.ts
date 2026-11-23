@@ -107,6 +107,22 @@ export type EstadoDocumentoOferta =
   | "pendiente"
   | "no-subsanado";
 
+/** Etiqueta visible del estado de un documento de la oferta. */
+export function etiquetaEstadoDocumentoOferta(
+  estado: EstadoDocumentoOferta,
+): string {
+  switch (estado) {
+    case "cargado":
+      return "Cargado";
+    case "subsanado":
+      return "Subsanado";
+    case "pendiente":
+      return "Pendiente";
+    case "no-subsanado":
+      return "No subsanado";
+  }
+}
+
 /**
  * Documento aportado por el proveedor.
  *
