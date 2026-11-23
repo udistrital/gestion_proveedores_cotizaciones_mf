@@ -758,5 +758,30 @@
         </mat-form-field>
       </div>
     </div>
+
+    @if (contactosMid.length > 0) {
+      <section aria-label="Contactos consultados en el MID">
+        <h4>Contactos registrados en el MID</h4>
+        <ul>
+          @for (contacto of contactosMid; track $index) {
+            <li>
+              <strong>{{ contacto.NombreContacto || "Contacto MID" }}</strong>
+              @if (contacto.TipoCanalContactoId !== undefined) {
+                <span>Canal ID: {{ contacto.TipoCanalContactoId }}.</span>
+              }
+              @if (contacto.ValorEspecifico) {
+                <span>Valor: {{ contacto.ValorEspecifico }}.</span>
+              }
+              @if (contacto.Proposito) {
+                <span>Propósito: {{ contacto.Proposito }}.</span>
+              }
+              @if (contacto.Extension) {
+                <span>Extensión: {{ contacto.Extension }}.</span>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
   </plantilla-tarjeta-contenedora>
 </div>

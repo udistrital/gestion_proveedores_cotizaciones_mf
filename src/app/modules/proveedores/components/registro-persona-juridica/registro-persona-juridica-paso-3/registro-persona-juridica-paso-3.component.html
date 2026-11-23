@@ -11,6 +11,26 @@
     descripcion="Cargue los soportes en formato PDF (máximo 25 MB por archivo). El RUT debe corresponder al año fiscal corriente y el RUP, cuando aplique, debe estar vigente y firmado digitalmente."
   ></banner-paso>
 
+  @if (documentosMid.length > 0) {
+    <section aria-label="Referencias de documentos consultadas en el MID">
+      <h3>Documentos registrados en el MID</h3>
+      <ul>
+        @for (documento of documentosMid; track $index) {
+          <li>
+            Tipo de documento ID: {{ documento.TipoDocumentoId ?? "No disponible" }}
+            @if (documento.Enlace) {
+              · <a [href]="documento.Enlace" target="_blank" rel="noopener noreferrer">
+                Abrir documento
+              </a>
+            } @else {
+              · No se recibió un enlace.
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
   <!-- ───────────────── 1. RUT ───────────────── -->
   <plantilla-tarjeta-contenedora
     icon="badge"

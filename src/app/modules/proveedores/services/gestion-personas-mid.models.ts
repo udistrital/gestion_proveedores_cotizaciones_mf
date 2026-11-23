@@ -38,6 +38,11 @@ export interface CuentaBancariaMid {
   UsuarioModificacionId?: number;
 }
 
+export interface DocumentoMid {
+  TipoDocumentoId?: number;
+  Enlace?: string;
+}
+
 export interface ProveedorNaturalMid {
   PaisNacimientoId?: number;
   Cargo?: number;

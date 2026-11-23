@@ -5,6 +5,7 @@ import {
   OpcionNatural,
 } from "../registro-persona-natural-catalogos.service";
 import { EstadoCatalogoNatural } from "../registro-persona-natural.component";
+import { CuentaBancariaMid } from "../../../services/gestion-personas-mid.models";
 
 @Component({
   selector: "app-registro-persona-natural-paso-2",
@@ -14,6 +15,7 @@ import { EstadoCatalogoNatural } from "../registro-persona-natural.component";
 })
 export class RegistroPersonaNaturalPaso2Component {
   @Input({ required: true }) afiliacionesFinanzasForm!: FormGroup;
+  @Input() cuentasBancariasMid: CuentaBancariaMid[] = [];
 
   @Input() catalogos: CatalogosPersonaNaturalPaso2 | null = null;
   @Input() estadoCatalogos: EstadoCatalogoNatural = { cargando: false, error: null };

@@ -5,6 +5,26 @@
     descripcion="Cargue los soportes requeridos para la formalización del registro institucional ante la Universidad Distrital."
   ></banner-paso>
 
+  @if (documentosMid.length > 0) {
+    <section aria-label="Referencias de documentos consultadas en el MID">
+      <h3>Documentos registrados en el MID</h3>
+      <ul>
+        @for (documento of documentosMid; track $index) {
+          <li>
+            Tipo de documento ID: {{ documento.TipoDocumentoId ?? "No disponible" }}
+            @if (documento.Enlace) {
+              · <a [href]="documento.Enlace" target="_blank" rel="noopener noreferrer">
+                Abrir documento
+              </a>
+            } @else {
+              · No se recibió un enlace.
+            }
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
   <!-- 1. DECLARACIÓN DE RENTA -->
   <plantilla-tarjeta-contenedora
     icon="request_quote"

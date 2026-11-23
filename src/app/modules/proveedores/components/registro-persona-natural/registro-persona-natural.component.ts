@@ -33,6 +33,7 @@ import {
 import {
   combinarProveedorMidMaterializado,
   mapearActualizacionPersonaNaturalMid,
+  mapearColeccionesConsultaProveedorMid,
   mapearConsultaPersonaNaturalMid,
   mapearPersonaNaturalMid,
 } from "../../services/gestion-personas-mid.mapper";
@@ -43,6 +44,9 @@ import {
   resumirRespuestaMid,
 } from "../../services/gestion-personas-mid.service";
 import {
+  ContactoMid,
+  CuentaBancariaMid,
+  DocumentoMid,
   ProveedorMidMaterializado,
   RespuestaMid,
 } from "../../services/gestion-personas-mid.models";
@@ -146,6 +150,9 @@ export class RegistroPersonaNaturalComponent implements OnInit {
   hayCambiosPendientes = false;
   proveedorMidId?: number;
   private proveedorPersistido?: ProveedorMidMaterializado;
+  contactosMid: ContactoMid[] = [];
+  cuentasBancariasMid: CuentaBancariaMid[] = [];
+  documentosMid: DocumentoMid[] = [];
   private omisionesPendientes: string[] = [];
   private registroParcial = false;
 
@@ -734,7 +741,7 @@ export class RegistroPersonaNaturalComponent implements OnInit {
         next: (catalogo) => {
           this.catalogoCiiu = catalogo;
           this.estadoCiiu = { cargando: false, error: null };
-          // Revalida el paso 4: un borrador puede traer IDs que ya no existen.
+          // Revalida las actividades cargadas cuando llega el catálogo CIIU.
           this.actividadDeclaracionForm?.updateValueAndValidity();
           // El catálogo llega en un callback asíncrono; se fuerza la
           // detección para que el paso 4 salga inmediatamente del estado de
@@ -756,7 +763,7 @@ export class RegistroPersonaNaturalComponent implements OnInit {
       });
   }
 
-  // Recupera las listas dependientes de un borrador restaurado y fija Colombia para la residencia.
+  // Carga listas geográficas que dependen de los valores actuales del formulario.
   private cargarGeografiaInicial(paises: OpcionNatural[]): void {
     const valor = (ruta: string): unknown => this.personaNaturalForm.get(ruta)?.value;
     this.enlaces.departamentosExpedicion.entrada.next({
@@ -914,8 +921,14 @@ export class RegistroPersonaNaturalComponent implements OnInit {
             return;
           }
           try {
+            const colecciones = mapearColeccionesConsultaProveedorMid(
+              respuesta.Data,
+            );
             this.proveedorPersistido = respuesta.Data;
             this.proveedorMidId = id;
+            this.contactosMid = colecciones.contactos;
+            this.cuentasBancariasMid = colecciones.cuentasBancarias;
+            this.documentosMid = colecciones.documentos;
             this.envioIndeterminado = false;
             this.personaNaturalForm.patchValue(
               mapearConsultaPersonaNaturalMid(respuesta.Data),
@@ -1202,14 +1215,20 @@ export class RegistroPersonaNaturalComponent implements OnInit {
           }
 
           try {
+            const colecciones = mapearColeccionesConsultaProveedorMid(
+              respuesta.Data,
+            );
             this.proveedorPersistido = this.proveedorPersistido
               ? combinarProveedorMidMaterializado(
                 this.proveedorPersistido,
                 respuesta.Data,
               )
               : respuesta.Data;
+            this.contactosMid = colecciones.contactos;
+            this.cuentasBancariasMid = colecciones.cuentasBancarias;
+            this.documentosMid = colecciones.documentos;
             this.personaNaturalForm.patchValue(
-              mapearConsultaPersonaNaturalMid(this.proveedorPersistido),
+              mapearConsultaPersonaNaturalMid(respuesta.Data),
               { emitEvent: false },
             );
           } catch (error) {

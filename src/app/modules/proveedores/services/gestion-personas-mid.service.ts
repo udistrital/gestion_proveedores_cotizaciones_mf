@@ -401,8 +401,17 @@ export class GestionPersonasMidService {
           "CuentaBancaria.EntidadBancariaId",
           "CuentaBancaria.TipoCuentaId",
           "CuentaBancaria.NumeroCuenta",
+          "CuentaBancaria.ContactoId",
           "CuentaBancaria.MontoCapitalAutorizado",
           "ActividadEconomicaProveedor.ActividadEconomicaId",
+          "Contacto.Id",
+          "Contacto.NombreContacto",
+          "Contacto.ValorEspecifico",
+          "Contacto.TipoCanalContactoId",
+          "Contacto.Proposito",
+          "Contacto.Extension",
+          "Documento.TipoDocumentoId",
+          "Documento.Enlace",
         ],
       };
       return this.http

@@ -1,5 +1,6 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormGroup } from '@angular/forms';
+import { DocumentoMid } from '../../../services/gestion-personas-mid.models';
 
 /** Tamaño máximo por soporte, alineado con el mockup (25 MB). */
 const TAMANO_MAXIMO_PDF = 25 * 1024 * 1024;
@@ -12,6 +13,7 @@ const TAMANO_MAXIMO_PDF = 25 * 1024 * 1024;
 })
 export class RegistroPersonaJuridicaPaso3Component {
   @Input() formulario: FormGroup = new FormGroup({});
+  @Input() documentosMid: DocumentoMid[] = [];
   @Output() formularioChange = new EventEmitter<FormGroup>();
 
   /** Errores de carga independientes por soporte. */

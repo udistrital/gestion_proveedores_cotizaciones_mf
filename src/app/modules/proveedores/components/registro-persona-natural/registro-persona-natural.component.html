@@ -80,6 +80,7 @@
           [tributarioForm]="tributarioForm"
           [residenciaForm]="residenciaForm"
           [contactoForm]="contactoForm"
+          [contactosMid]="contactosMid"
           [catalogos]="catalogosPaso1"
           [estadoCatalogos]="estadoPaso1"
           [geografia]="geografia"
@@ -96,6 +97,7 @@
       @if (currentStep === 2) {
         <app-registro-persona-natural-paso-2
           [afiliacionesFinanzasForm]="afiliacionesFinanzasForm"
+          [cuentasBancariasMid]="cuentasBancariasMid"
           [catalogos]="catalogosPaso2"
           [estadoCatalogos]="estadoPaso2"
           (reintentarCatalogos)="cargarCatalogosPaso2()"
@@ -110,6 +112,7 @@
       @if (currentStep === 3) {
         <app-registro-persona-natural-paso-3
           [documentosForm]="documentosForm"
+          [documentosMid]="documentosMid"
           [declaranteRenta]="declaranteRenta"
           (estadoCambio)="estadoMensaje = $event.mensaje; estadoDetalle = $event.detalle"
           (editarDeclaranteRenta)="irAlPaso(1)"

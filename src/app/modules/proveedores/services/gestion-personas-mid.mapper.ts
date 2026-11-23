@@ -1,10 +1,13 @@
 import {
   ActualizarProveedorJuridicoMidPayload,
   ActualizarProveedorNaturalMidPayload,
+  ContactoMid,
   DatosIdentificacionMid,
+  DocumentoMid,
   MapeoPayloadMid,
   NuevoProveedorJuridicoMidPayload,
   NuevoProveedorNaturalMidPayload,
+  CuentaBancariaMid,
   CuentaBancariaMidActualizacion,
   ProveedorMidMaterializado,
   ProveedorJuridicoMid,
@@ -269,6 +272,113 @@ function idsActividadEconomica(valor: unknown): number[] {
     }
     return id;
   });
+}
+
+function registrosRelacion(
+  datos: Record<string, unknown>,
+  campo: string,
+): Record<string, unknown>[] {
+  const valor = datos[campo];
+  if (valor === undefined || valor === null) {
+    return [];
+  }
+  if (!Array.isArray(valor)) {
+    throw new Error(`La relación ${campo} no tiene el formato documentado.`);
+  }
+  return valor.map((elemento, indice) =>
+    registro(elemento, `${campo}[${indice}]`),
+  );
+}
+
+export function mapearColeccionesConsultaProveedorMid(
+  datos: ProveedorMidMaterializado,
+): {
+  contactos: ContactoMid[];
+  cuentasBancarias: CuentaBancariaMid[];
+  documentos: DocumentoMid[];
+} {
+  const contactos = registrosRelacion(datos, "Contacto").map((datosContacto) => {
+    const contacto: ContactoMid = {};
+    const id = enteroNumericoOpcional(datosContacto["Id"], "Contacto.Id", 1);
+    const tipoCanalContactoId = enteroNumericoOpcional(
+      datosContacto["TipoCanalContactoId"],
+      "Contacto.TipoCanalContactoId",
+      1,
+    );
+    if (id !== undefined) {
+      contacto.Id = id;
+    }
+    if (tipoCanalContactoId !== undefined) {
+      contacto.TipoCanalContactoId = tipoCanalContactoId;
+    }
+    for (const campo of [
+      "NombreContacto",
+      "ValorEspecifico",
+      "Proposito",
+      "Extension",
+    ] as const) {
+      const valor = textoOpcional(datosContacto, campo);
+      if (valor !== undefined) {
+        contacto[campo] = valor;
+      }
+    }
+    return contacto;
+  });
+
+  const cuentasBancarias = registrosRelacion(datos, "CuentaBancaria").map(
+    (datosCuenta) => {
+      const cuenta: CuentaBancariaMid = {};
+      for (const campo of [
+        "Id",
+        "EntidadBancariaId",
+        "TipoCuentaId",
+        "ContactoId",
+      ] as const) {
+        const valor = enteroNumericoOpcional(
+          datosCuenta[campo],
+          `CuentaBancaria.${campo}`,
+          1,
+        );
+        if (valor !== undefined) {
+          cuenta[campo] = valor;
+        }
+      }
+      const numeroCuenta = textoOpcional(datosCuenta, "NumeroCuenta");
+      if (numeroCuenta !== undefined) {
+        cuenta.NumeroCuenta = numeroCuenta;
+      }
+      const monto = enteroNumericoOpcional(
+        datosCuenta["MontoCapitalAutorizado"],
+        "CuentaBancaria.MontoCapitalAutorizado",
+        0,
+      );
+      if (monto !== undefined) {
+        cuenta.MontoCapitalAutorizado = monto;
+      }
+      return cuenta;
+    },
+  );
+
+  const documentos = registrosRelacion(datos, "Documento").map(
+    (datosDocumento) => {
+      const documento: DocumentoMid = {};
+      const tipoDocumentoId = enteroNumericoOpcional(
+        datosDocumento["TipoDocumentoId"],
+        "Documento.TipoDocumentoId",
+        1,
+      );
+      const enlace = textoOpcional(datosDocumento, "Enlace");
+      if (tipoDocumentoId !== undefined) {
+        documento.TipoDocumentoId = tipoDocumentoId;
+      }
+      if (enlace !== undefined) {
+        documento.Enlace = enlace;
+      }
+      return documento;
+    },
+  );
+
+  return { contactos, cuentasBancarias, documentos };
 }
 
 function actividadesNuevas(

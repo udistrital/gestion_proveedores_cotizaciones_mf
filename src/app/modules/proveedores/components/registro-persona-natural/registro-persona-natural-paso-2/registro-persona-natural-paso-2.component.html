@@ -265,5 +265,25 @@
         responsabilidades por inconsistencias en los datos proporcionados.
       </mat-checkbox>
     </div>
+    @if (cuentasBancariasMid.length > 0) {
+      <section aria-label="Cuentas bancarias consultadas en el MID">
+        <h4>Cuentas bancarias registradas en el MID</h4>
+        <ul>
+          @for (cuenta of cuentasBancariasMid; track $index) {
+            <li>
+              Banco ID: {{ cuenta.EntidadBancariaId ?? "No disponible" }} ·
+              Tipo de cuenta ID: {{ cuenta.TipoCuentaId ?? "No disponible" }} ·
+              Número: {{ cuenta.NumeroCuenta ?? "No disponible" }}
+              @if (cuenta.MontoCapitalAutorizado !== undefined) {
+                · Capital autorizado: {{ cuenta.MontoCapitalAutorizado }}
+              }
+              @if (cuenta.ContactoId !== undefined) {
+                · Contacto ID: {{ cuenta.ContactoId }}
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
   </plantilla-tarjeta-contenedora>
 </div>

@@ -30,6 +30,7 @@ import { RegistroPersonaNaturalCatalogosService } from "../registro-persona-natu
 import {
   combinarProveedorMidMaterializado,
   mapearActualizacionPersonaJuridicaMid,
+  mapearColeccionesConsultaProveedorMid,
   mapearConsultaPersonaJuridicaMid,
   mapearPersonaJuridicaMid,
 } from "../../services/gestion-personas-mid.mapper";
@@ -40,6 +41,9 @@ import {
   resumirRespuestaMid,
 } from "../../services/gestion-personas-mid.service";
 import {
+  ContactoMid,
+  CuentaBancariaMid,
+  DocumentoMid,
   ProveedorMidMaterializado,
   RespuestaMid,
 } from "../../services/gestion-personas-mid.models";
@@ -116,6 +120,9 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
   hayCambiosPendientes = false;
   proveedorMidId?: number;
   private proveedorPersistido?: ProveedorMidMaterializado;
+  contactosMid: ContactoMid[] = [];
+  cuentasBancariasMid: CuentaBancariaMid[] = [];
+  documentosMid: DocumentoMid[] = [];
   private omisionesPendientes: string[] = [];
   private registroParcial = false;
 
@@ -194,8 +201,14 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
             return;
           }
           try {
+            const colecciones = mapearColeccionesConsultaProveedorMid(
+              respuesta.Data,
+            );
             this.proveedorPersistido = respuesta.Data;
             this.proveedorMidId = id;
+            this.contactosMid = colecciones.contactos;
+            this.cuentasBancariasMid = colecciones.cuentasBancarias;
+            this.documentosMid = colecciones.documentos;
             this.envioIndeterminado = false;
             this.formulario.patchValue(
               mapearConsultaPersonaJuridicaMid(respuesta.Data),
@@ -662,14 +675,20 @@ export class RegistroPersonaJuridicaComponent implements OnInit {
           }
 
           try {
+            const colecciones = mapearColeccionesConsultaProveedorMid(
+              respuesta.Data,
+            );
             this.proveedorPersistido = this.proveedorPersistido
               ? combinarProveedorMidMaterializado(
                 this.proveedorPersistido,
                 respuesta.Data,
               )
               : respuesta.Data;
+            this.contactosMid = colecciones.contactos;
+            this.cuentasBancariasMid = colecciones.cuentasBancarias;
+            this.documentosMid = colecciones.documentos;
             this.formulario.patchValue(
-              mapearConsultaPersonaJuridicaMid(this.proveedorPersistido),
+              mapearConsultaPersonaJuridicaMid(respuesta.Data),
               { emitEvent: false },
             );
           } catch (error) {

@@ -7,6 +7,7 @@ import {
 import {
   OpcionLugar,
 } from '../services/registro-persona-juridica-ubicaciones.service';
+import { ContactoMid } from '../../../services/gestion-personas-mid.models';
 
 interface Opcion<T> {
   label: string;
@@ -22,6 +23,7 @@ interface Opcion<T> {
 export class RegistroPersonaJuridicaPaso1Component {
 
   @Input() formulario: FormGroup = new FormGroup({});
+  @Input() contactosMid: ContactoMid[] = [];
   @Input() catalogos: CatalogosPersonaJuridica | null = null;
   @Input() pais: OpcionLugar | null = null;
   @Input() departamentos: OpcionLugar[] = [];

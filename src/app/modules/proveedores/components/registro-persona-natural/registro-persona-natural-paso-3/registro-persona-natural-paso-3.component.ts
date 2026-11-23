@@ -3,6 +3,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ReactiveFormsModule, FormGroup } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
 import { SharedModule } from "src/app/shared/shared.module";
+import { DocumentoMid } from "../../../services/gestion-personas-mid.models";
 
 /**
  * Paso 3: soportes documentales (declaración de renta, RUT y RUP).
@@ -21,6 +22,8 @@ import { SharedModule } from "src/app/shared/shared.module";
 export class RegistroPersonaNaturalPaso3Component {
   @Input({ required: true })
   documentosForm!: FormGroup;
+
+  @Input() documentosMid: DocumentoMid[] = [];
 
   /** Valor del paso 1: true si la persona declara renta. */
   @Input() declaranteRenta: boolean | null = null;

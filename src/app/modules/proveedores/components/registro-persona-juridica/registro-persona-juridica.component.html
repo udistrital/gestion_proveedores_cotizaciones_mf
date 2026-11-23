@@ -69,6 +69,7 @@
           <registro-persona-juridica-paso-1
             [(formulario)]="formulario"
             [catalogos]="catalogos"
+            [contactosMid]="contactosMid"
             [pais]="pais"
             [departamentos]="departamentos"
             [ciudades]="ciudadesDomicilio"
@@ -84,11 +85,13 @@
           <registro-persona-juridica-paso-2
             [(formulario)]="formulario"
             [catalogos]="catalogos"
+            [cuentasBancariasMid]="cuentasBancariasMid"
           ></registro-persona-juridica-paso-2>
         }
         @case (3) {
           <registro-persona-juridica-paso-3
             [(formulario)]="formulario"
+            [documentosMid]="documentosMid"
           ></registro-persona-juridica-paso-3>
         }
         @case (4) {

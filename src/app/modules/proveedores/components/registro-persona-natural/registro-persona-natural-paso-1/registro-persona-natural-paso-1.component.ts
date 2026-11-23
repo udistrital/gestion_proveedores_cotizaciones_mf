@@ -4,6 +4,7 @@ import {
   CatalogosPersonaNaturalPaso1,
   OpcionNatural,
 } from "../registro-persona-natural-catalogos.service";
+import { ContactoMid } from "../../../services/gestion-personas-mid.models";
 import {
   ClaveGeografiaNatural,
   EstadoCatalogoNatural,
@@ -23,6 +24,7 @@ export class RegistroPersonaNaturalPaso1Component {
   @Input({ required: true }) tributarioForm!: FormGroup;
   @Input({ required: true }) residenciaForm!: FormGroup;
   @Input({ required: true }) contactoForm!: FormGroup;
+  @Input() contactosMid: ContactoMid[] = [];
   @Input() catalogos: CatalogosPersonaNaturalPaso1 | null = null;
   @Input() estadoCatalogos: EstadoCatalogoNatural = { cargando: false, error: null };
   @Input() geografia!: Record<ClaveGeografiaNatural, EstadoListaNatural>;

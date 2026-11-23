@@ -4,6 +4,7 @@ import {
   CatalogosPersonaJuridica,
   OpcionCatalogo,
 } from '../services/registro-persona-juridica-catalogos.service';
+import { CuentaBancariaMid } from '../../../services/gestion-personas-mid.models';
 
 @Component({
   selector: 'registro-persona-juridica-paso-2',
@@ -13,6 +14,7 @@ import {
 })
 export class RegistroPersonaJuridicaPaso2Component {
   @Input() formulario: FormGroup = new FormGroup({});
+  @Input() cuentasBancariasMid: CuentaBancariaMid[] = [];
   @Input() catalogos: CatalogosPersonaJuridica | null = null;
   @Output() formularioChange = new EventEmitter<FormGroup>();
 
